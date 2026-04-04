@@ -1,6 +1,6 @@
-# AMF-BiGRU 移动载荷识别模型复现
+# AMF-BiGRU 移动载荷识别系统
 
-基于论文 **"Reconstruction and localization of moving load on deck structures based on attention mechanism-based multi-modal fusion and bidirectional gated recurrent unit"** (Liu et al., *Engineering Applications of Artificial Intelligence*, Vol.164, 2026) 的复现项目。
+基于注意力机制的多模态融合双向门控循环单元（AMF-BiGRU）的甲板结构移动载荷重构与定位系统。
 
 ## 方法概述
 
@@ -26,8 +26,20 @@ deck_load/
 ├── generate_video.py                   # 实时预测演示视频（基于真实模型推理）
 ├── generate_video_speed_demo.py        # 不同车速演示视频（合成数据）
 ├── generate_video_alternating_demo.py  # 交变载荷+噪声演示视频（合成数据）
+├── api_server.py                       # Flask API 后端（模型推理服务）
 ├── requirements.txt                    # Python 依赖
-├── 差异分析.txt                         # 复现结果与论文的详细差异对比
+├── 差异分析.txt                         # 结果差异分析
+├── frontend/                           # React + Vite 前端仪表板
+│   ├── src/
+│   │   ├── App.jsx                     # 路由 + 侧边栏布局
+│   │   ├── main.jsx                    # 入口
+│   │   ├── index.css                   # 全局样式（暗色主题）
+│   │   └── pages/
+│   │       ├── Architecture.jsx        # 模型架构页（首页）
+│   │       ├── Showcase.jsx            # 结果展示页（已有工况 true vs pred）
+│   │       └── Upload.jsx              # 在线预测页（上传 CSV → 纯预测）
+│   ├── package.json
+│   └── vite.config.js                  # 含 API 代理配置
 ├── dataset/
 │   └── different_weight/
 │       ├── train/   (w40, w42, w44, w46, w48, w50 @ v=40 m/s)
@@ -102,7 +114,32 @@ python generate_video_alternating_demo.py
 
 视频以 10 倍慢放展示实时预测过程，包含甲板俯视图和时序曲线对比。
 
-## 复现结果
+### 4. 启动前端仪表板
+
+```bash
+# 安装后端依赖
+pip install flask flask-cors
+
+# 启动 Flask API 后端（端口 5000）
+python api_server.py
+
+# 新终端 — 启动前端开发服务器
+cd frontend
+npm install
+npm run dev
+```
+
+浏览器打开 Vite 输出的地址（默认 http://localhost:5173）即可访问仪表板。
+
+前端共 3 个页面：
+
+| 页面 | 路由 | 功能 |
+|------|------|------|
+| 模型架构 | `/` | AMF-BiGRU 网络结构图、数据处理流水线、超参数说明 |
+| 结果展示 | `/showcase` | 选择已有工况（车重/车速），查看真实值 vs 预测值对比图及 RPE/R² 指标 |
+| 在线预测 | `/predict` | 上传仅含传感器列（N1_UZ, N7_UZ, N1_AZ, N7_AZ）的 CSV，展示纯预测结果 |
+
+## 测试结果
 
 不同车重工况，2 测量点 (N1, N7)，测试集 w=45 kN：
 
@@ -113,7 +150,7 @@ python generate_video_alternating_demo.py
 | 前轮位置 | 3.36 | 0.9970 |
 | 后轮位置 | 3.43 | 0.9968 |
 
-论文报告值：RPE < 0.45%，R² > 0.9999。差异分析详见 `差异分析.txt`。
+详细差异分析见 `差异分析.txt`。
 
 ## 数据格式
 
@@ -131,6 +168,3 @@ CSV 文件，每文件 1200 行（+ 表头），列定义：
 | front_axle_wt | 前轴重量 (N) |
 | rear_axle_wt | 后轴重量 (N) |
 
-## 参考文献
-
-Liu, Y., Quan, B., Ke, W., Ren, W., Liu, Z., & Liu, H. (2026). Reconstruction and localization of moving load on deck structures based on attention mechanism-based multi-modal fusion and bidirectional gated recurrent unit. *Engineering Applications of Artificial Intelligence*, 164, 113394.
