@@ -7,11 +7,11 @@ import {
 
 function MetricBadge({ label, value, unit = '' }) {
   return (
-    <div className="bg-[#0d1117] border border-[#30363d] rounded-lg px-4 py-3 text-center">
+    <div className="bg-[#0d1117] border border-[#30363d] rounded-lg px-2 py-2.5 text-center min-w-0">
       <p className="text-xs text-[#8b949e] mb-1">{label}</p>
-      <p className="text-lg font-bold font-mono text-[#ffeaa7]">
+      <p className="text-sm sm:text-base font-bold font-mono text-[#ffeaa7] break-all leading-tight">
         {value}
-        <span className="text-xs text-[#8b949e] ml-1">{unit}</span>
+        {unit ? <span className="text-[10px] sm:text-xs text-[#8b949e] ml-0.5">{unit}</span> : null}
       </p>
     </div>
   )
@@ -152,8 +152,8 @@ export default function Showcase() {
               <div key={col} className="bg-[#161b22] border border-[#30363d] rounded-xl p-4">
                 <p className="text-xs text-[#8b949e] mb-3">{CHART_TITLES[col]}</p>
                 <div className="grid grid-cols-2 gap-2">
-                  <MetricBadge label="RPE" value={m.rpe.toFixed(4)} unit="%" />
-                  <MetricBadge label="R²" value={m.r2.toFixed(6)} />
+                  <MetricBadge label="RPE" value={m.rpe.toFixed(2)} unit="%" />
+                  <MetricBadge label="R²" value={m.r2.toFixed(4)} />
                 </div>
               </div>
             ))}
@@ -169,44 +169,56 @@ export default function Showcase() {
                 <h3 className="text-sm font-medium text-[#e6edf3] mb-4">
                   {CHART_TITLES[col]} ({CHART_UNITS[col]})
                 </h3>
-                <ResponsiveContainer width="100%" height={280}>
-                  <LineChart data={chartData}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#21262d" />
-                    <XAxis
-                      dataKey="time"
-                      tick={{ fill: '#8b949e', fontSize: 11 }}
-                      label={{ value: 'Time (s)', position: 'insideBottom', offset: -4, fill: '#8b949e', fontSize: 11 }}
-                    />
-                    <YAxis tick={{ fill: '#8b949e', fontSize: 11 }} />
-                    <Tooltip
-                      contentStyle={{
-                        backgroundColor: '#161b22',
-                        border: '1px solid #30363d',
-                        borderRadius: 8,
-                        fontSize: 12,
-                      }}
-                      labelStyle={{ color: '#8b949e' }}
-                    />
-                    <Legend wrapperStyle={{ fontSize: 12 }} />
-                    <Line
-                      type="monotone"
-                      dataKey={`${col}_true`}
-                      name="真实值"
-                      stroke="#00d4ff"
-                      dot={false}
-                      strokeWidth={1.5}
-                    />
-                    <Line
-                      type="monotone"
-                      dataKey={`${col}_pred`}
-                      name="预测值"
-                      stroke="#ff6b6b"
-                      dot={false}
-                      strokeWidth={1.5}
-                      strokeDasharray="5 3"
-                    />
-                  </LineChart>
-                </ResponsiveContainer>
+                <div>
+                  <ResponsiveContainer width="100%" height={268}>
+                    <LineChart
+                      data={chartData}
+                      margin={{ top: 28, right: 8, left: 4, bottom: 8 }}
+                    >
+                      <CartesianGrid strokeDasharray="3 3" stroke="#21262d" />
+                      <XAxis
+                        dataKey="time"
+                        tick={{ fill: '#8b949e', fontSize: 10 }}
+                        tickMargin={10}
+                        interval="preserveStartEnd"
+                        minTickGap={28}
+                      />
+                      <YAxis tick={{ fill: '#8b949e', fontSize: 11 }} />
+                      <Tooltip
+                        contentStyle={{
+                          backgroundColor: '#161b22',
+                          border: '1px solid #30363d',
+                          borderRadius: 8,
+                          fontSize: 12,
+                        }}
+                        labelStyle={{ color: '#8b949e' }}
+                      />
+                      <Legend
+                        verticalAlign="top"
+                        align="right"
+                        wrapperStyle={{ fontSize: 12, paddingBottom: 4 }}
+                      />
+                      <Line
+                        type="monotone"
+                        dataKey={`${col}_true`}
+                        name="真实值"
+                        stroke="#00d4ff"
+                        dot={false}
+                        strokeWidth={1.5}
+                      />
+                      <Line
+                        type="monotone"
+                        dataKey={`${col}_pred`}
+                        name="预测值"
+                        stroke="#ff6b6b"
+                        dot={false}
+                        strokeWidth={1.5}
+                        strokeDasharray="5 3"
+                      />
+                    </LineChart>
+                  </ResponsiveContainer>
+                  <p className="text-center text-[11px] text-[#8b949e] pt-1.5 pb-0.5">Time (s)</p>
+                </div>
               </div>
             ))}
           </div>

@@ -142,16 +142,6 @@ export default function Architecture() {
             <ParamRow label="最大 Epoch" value="3000" />
             <ParamRow label="早停 Patience" value="300" />
           </Card>
-
-          <Card>
-            <h2 className="text-base font-semibold text-[#e6edf3] mb-3">数据配置</h2>
-            <ParamRow label="位移特征" value="N1_UZ, N7_UZ" />
-            <ParamRow label="加速度特征" value="N1_AZ, N7_AZ" />
-            <ParamRow label="训练集" value="6 种车重 (40–50 kN)" />
-            <ParamRow label="验证集" value="w=38 kN, v=40 m/s" />
-            <ParamRow label="测试集" value="w=45 kN, v=40 m/s" />
-            <ParamRow label="标准化" value="Z-Score (train fit)" />
-          </Card>
         </div>
       </div>
     </div>

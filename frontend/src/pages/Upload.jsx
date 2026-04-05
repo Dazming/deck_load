@@ -1,5 +1,5 @@
-import { useState, useRef, useCallback } from 'react'
-import { Upload as UploadIcon, Loader2, AlertCircle, FileUp, X } from 'lucide-react'
+import { useState, useRef, useCallback, useEffect } from 'react'
+import { Upload as UploadIcon, Loader2, AlertCircle, FileUp, X, History, Trash2 } from 'lucide-react'
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer,
@@ -26,13 +26,46 @@ const CHART_COLORS = {
   rear_wheel_pos: '#fbbf24',
 }
 
+const HISTORY_KEY = 'deck_load_predict_history'
+const MAX_HISTORY = 10
+
+function formatTime(iso) {
+  try {
+    const d = new Date(iso)
+    return d.toLocaleString('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })
+  } catch {
+    return ''
+  }
+}
+
 export default function Upload() {
   const [file, setFile] = useState(null)
   const [result, setResult] = useState(null)
+  const [activeLabel, setActiveLabel] = useState(null)
+  const [activeHistoryId, setActiveHistoryId] = useState(null)
+  const [history, setHistory] = useState([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
   const [dragOver, setDragOver] = useState(false)
   const inputRef = useRef(null)
+
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(HISTORY_KEY)
+      if (raw) setHistory(JSON.parse(raw))
+    } catch {
+      /* ignore */
+    }
+  }, [])
+
+  const persistHistory = useCallback((items) => {
+    setHistory(items)
+    try {
+      localStorage.setItem(HISTORY_KEY, JSON.stringify(items))
+    } catch {
+      /* ignore */
+    }
+  }, [])
 
   const handleFile = useCallback((f) => {
     if (f && f.name.endsWith('.csv')) {
@@ -65,7 +98,25 @@ export default function Upload() {
         const body = await res.json()
         throw new Error(body.error || `HTTP ${res.status}`)
       }
-      setResult(await res.json())
+      const data = await res.json()
+      setResult(data)
+      setActiveLabel(file.name)
+      const entry = {
+        id: Date.now(),
+        fileName: file.name,
+        at: new Date().toISOString(),
+        result: data,
+      }
+      setActiveHistoryId(entry.id)
+      setHistory((prev) => {
+        const next = [entry, ...prev].slice(0, MAX_HISTORY)
+        try {
+          localStorage.setItem(HISTORY_KEY, JSON.stringify(next))
+        } catch {
+          /* ignore */
+        }
+        return next
+      })
     } catch (e) {
       setError(e.message)
       setResult(null)
@@ -73,6 +124,43 @@ export default function Upload() {
       setLoading(false)
     }
   }, [file])
+
+  const loadFromHistory = useCallback((entry) => {
+    setResult(entry.result)
+    setActiveLabel(entry.fileName)
+    setActiveHistoryId(entry.id)
+    setError(null)
+  }, [])
+
+  const removeHistoryItem = useCallback((id, e) => {
+    e.stopPropagation()
+    setHistory((prev) => {
+      const next = prev.filter((h) => h.id !== id)
+      try {
+        localStorage.setItem(HISTORY_KEY, JSON.stringify(next))
+      } catch {
+        /* ignore */
+      }
+      return next
+    })
+    if (activeHistoryId === id) {
+      setResult(null)
+      setActiveLabel(null)
+      setActiveHistoryId(null)
+    }
+  }, [activeHistoryId])
+
+  const clearHistory = useCallback(() => {
+    persistHistory([])
+  }, [persistHistory])
+
+  const clearFileAndResult = useCallback((e) => {
+    e.stopPropagation()
+    setFile(null)
+    setResult(null)
+    setActiveLabel(null)
+    setActiveHistoryId(null)
+  }, [])
 
   const chartData = result
     ? result.times.map((t, i) => {
@@ -93,61 +181,119 @@ export default function Upload() {
         </p>
       </div>
 
-      {/* Upload area */}
-      <div className="bg-[#161b22] border border-[#30363d] rounded-xl p-5 space-y-4">
-        <div
-          onDragOver={(e) => { e.preventDefault(); setDragOver(true) }}
-          onDragLeave={() => setDragOver(false)}
-          onDrop={handleDrop}
-          onClick={() => inputRef.current?.click()}
-          className={`border-2 border-dashed rounded-xl p-10 text-center cursor-pointer transition-colors ${
-            dragOver
-              ? 'border-[#00d4ff] bg-[#00d4ff]/5'
-              : 'border-[#30363d] hover:border-[#484f58] hover:bg-[#1c2333]'
-          }`}
-        >
-          <input
-            ref={inputRef}
-            type="file"
-            accept=".csv"
-            className="hidden"
-            onChange={(e) => handleFile(e.target.files[0])}
-          />
-          <FileUp size={40} className="mx-auto text-[#484f58] mb-3" />
-          <p className="text-sm text-[#8b949e]">
-            拖拽 CSV 文件到此处，或 <span className="text-[#00d4ff]">点击选择文件</span>
-          </p>
-          <p className="text-xs text-[#484f58] mt-2">
-            CSV 需包含列: N1_UZ, N7_UZ, N1_AZ, N7_AZ
-          </p>
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Upload area */}
+        <div className="lg:col-span-2 bg-[#161b22] border border-[#30363d] rounded-xl p-5 space-y-4">
+          <div
+            onDragOver={(e) => { e.preventDefault(); setDragOver(true) }}
+            onDragLeave={() => setDragOver(false)}
+            onDrop={handleDrop}
+            onClick={() => inputRef.current?.click()}
+            className={`border-2 border-dashed rounded-xl p-10 text-center cursor-pointer transition-colors ${
+              dragOver
+                ? 'border-[#00d4ff] bg-[#00d4ff]/5'
+                : 'border-[#30363d] hover:border-[#484f58] hover:bg-[#1c2333]'
+            }`}
+          >
+            <input
+              ref={inputRef}
+              type="file"
+              accept=".csv"
+              className="hidden"
+              onChange={(e) => handleFile(e.target.files[0])}
+            />
+            <FileUp size={40} className="mx-auto text-[#484f58] mb-3" />
+            <p className="text-sm text-[#8b949e]">
+              拖拽 CSV 文件到此处，或 <span className="text-[#00d4ff]">点击选择文件</span>
+            </p>
+            <p className="text-xs text-[#484f58] mt-2">
+              CSV 需包含列: N1_UZ, N7_UZ, N1_AZ, N7_AZ
+            </p>
+          </div>
+
+          {file && (
+            <div className="flex items-center justify-between bg-[#0d1117] border border-[#30363d] rounded-lg px-4 py-3">
+              <div className="flex items-center gap-3 min-w-0">
+                <FileUp size={18} className="text-[#00d4ff] shrink-0" />
+                <div className="min-w-0">
+                  <p className="text-sm text-[#e6edf3] truncate">{file.name}</p>
+                  <p className="text-xs text-[#484f58]">{(file.size / 1024).toFixed(1)} KB</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={clearFileAndResult}
+                className="text-[#484f58] hover:text-[#ff6b6b] transition-colors shrink-0"
+              >
+                <X size={16} />
+              </button>
+            </div>
+          )}
+
+          <button
+            type="button"
+            onClick={handleUpload}
+            disabled={!file || loading}
+            className="flex items-center gap-2 bg-[#00d4ff] hover:bg-[#00b8d9] disabled:opacity-50 text-[#0d1117] font-semibold px-5 py-2 rounded-lg text-sm transition-colors"
+          >
+            {loading ? <Loader2 size={16} className="animate-spin" /> : <UploadIcon size={16} />}
+            {loading ? '预测中...' : '上传并预测'}
+          </button>
         </div>
 
-        {file && (
-          <div className="flex items-center justify-between bg-[#0d1117] border border-[#30363d] rounded-lg px-4 py-3">
-            <div className="flex items-center gap-3">
-              <FileUp size={18} className="text-[#00d4ff]" />
-              <div>
-                <p className="text-sm text-[#e6edf3]">{file.name}</p>
-                <p className="text-xs text-[#484f58]">{(file.size / 1024).toFixed(1)} KB</p>
-              </div>
-            </div>
-            <button
-              onClick={(e) => { e.stopPropagation(); setFile(null); setResult(null) }}
-              className="text-[#484f58] hover:text-[#ff6b6b] transition-colors"
-            >
-              <X size={16} />
-            </button>
+        {/* History */}
+        <div className="bg-[#161b22] border border-[#30363d] rounded-xl p-5 flex flex-col max-h-[420px]">
+          <div className="flex items-center justify-between gap-2 mb-3">
+            <h2 className="text-sm font-semibold text-[#e6edf3] flex items-center gap-2">
+              <History size={16} className="text-[#00d4ff]" />
+              预测历史
+            </h2>
+            {history.length > 0 && (
+              <button
+                type="button"
+                onClick={clearHistory}
+                className="text-xs text-[#8b949e] hover:text-[#ff6b6b] flex items-center gap-1"
+              >
+                <Trash2 size={12} />
+                清空
+              </button>
+            )}
           </div>
-        )}
-
-        <button
-          onClick={handleUpload}
-          disabled={!file || loading}
-          className="flex items-center gap-2 bg-[#00d4ff] hover:bg-[#00b8d9] disabled:opacity-50 text-[#0d1117] font-semibold px-5 py-2 rounded-lg text-sm transition-colors"
-        >
-          {loading ? <Loader2 size={16} className="animate-spin" /> : <UploadIcon size={16} />}
-          {loading ? '预测中...' : '上传并预测'}
-        </button>
+          {history.length === 0 ? (
+            <p className="text-xs text-[#484f58] flex-1">成功预测后将自动保存，最多保留 {MAX_HISTORY} 条</p>
+          ) : (
+            <ul className="space-y-2 overflow-y-auto flex-1 pr-1">
+              {history.map((h) => (
+                <li key={h.id}>
+                  <button
+                    type="button"
+                    onClick={() => loadFromHistory(h)}
+                    className={`w-full text-left rounded-lg border px-3 py-2.5 text-xs transition-colors group ${
+                      activeHistoryId === h.id
+                        ? 'border-[#00d4ff]/50 bg-[#00d4ff]/10'
+                        : 'border-[#30363d] bg-[#0d1117] hover:border-[#484f58]'
+                    }`}
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0 flex-1">
+                        <p className="text-[#e6edf3] font-medium truncate">{h.fileName}</p>
+                        <p className="text-[#484f58] mt-0.5">{formatTime(h.at)}</p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={(e) => removeHistoryItem(h.id, e)}
+                        className="text-[#484f58] hover:text-[#ff6b6b] p-0.5 opacity-0 group-hover:opacity-100"
+                        title="删除"
+                      >
+                        <X size={14} />
+                      </button>
+                    </div>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
       </div>
 
       {error && (
@@ -158,45 +304,60 @@ export default function Upload() {
       )}
 
       {result && (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {Object.keys(result.series).map((col) => (
-            <div
-              key={col}
-              className="bg-[#161b22] border border-[#30363d] rounded-xl p-5"
-            >
-              <h3 className="text-sm font-medium text-[#e6edf3] mb-4">
-                {CHART_TITLES[col]} ({CHART_UNITS[col]})
-              </h3>
-              <ResponsiveContainer width="100%" height={280}>
-                <LineChart data={chartData}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#21262d" />
-                  <XAxis
-                    dataKey="time"
-                    tick={{ fill: '#8b949e', fontSize: 11 }}
-                    label={{ value: 'Time (s)', position: 'insideBottom', offset: -4, fill: '#8b949e', fontSize: 11 }}
-                  />
-                  <YAxis tick={{ fill: '#8b949e', fontSize: 11 }} />
-                  <Tooltip
-                    contentStyle={{
-                      backgroundColor: '#161b22',
-                      border: '1px solid #30363d',
-                      borderRadius: 8,
-                      fontSize: 12,
-                    }}
-                    labelStyle={{ color: '#8b949e' }}
-                  />
-                  <Line
-                    type="monotone"
-                    dataKey={col}
-                    name={`${CHART_TITLES[col]} 预测值`}
-                    stroke={CHART_COLORS[col]}
-                    dot={false}
-                    strokeWidth={2}
-                  />
-                </LineChart>
-              </ResponsiveContainer>
-            </div>
-          ))}
+        <div className="space-y-3">
+          {activeLabel && (
+            <p className="text-xs text-[#8b949e]">
+              当前结果：<span className="text-[#e6edf3] font-mono">{activeLabel}</span>
+            </p>
+          )}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {Object.keys(result.series).map((col) => (
+              <div
+                key={col}
+                className="bg-[#161b22] border border-[#30363d] rounded-xl p-5"
+              >
+                <h3 className="text-sm font-medium text-[#e6edf3] mb-4">
+                  {CHART_TITLES[col]} ({CHART_UNITS[col]})
+                </h3>
+                <div>
+                  <ResponsiveContainer width="100%" height={268}>
+                    <LineChart
+                      data={chartData}
+                      margin={{ top: 8, right: 8, left: 4, bottom: 8 }}
+                    >
+                      <CartesianGrid strokeDasharray="3 3" stroke="#21262d" />
+                      <XAxis
+                        dataKey="time"
+                        tick={{ fill: '#8b949e', fontSize: 10 }}
+                        tickMargin={10}
+                        interval="preserveStartEnd"
+                        minTickGap={28}
+                      />
+                      <YAxis tick={{ fill: '#8b949e', fontSize: 11 }} />
+                      <Tooltip
+                        contentStyle={{
+                          backgroundColor: '#161b22',
+                          border: '1px solid #30363d',
+                          borderRadius: 8,
+                          fontSize: 12,
+                        }}
+                        labelStyle={{ color: '#8b949e' }}
+                      />
+                      <Line
+                        type="monotone"
+                        dataKey={col}
+                        name={`${CHART_TITLES[col]} 预测值`}
+                        stroke={CHART_COLORS[col]}
+                        dot={false}
+                        strokeWidth={2}
+                      />
+                    </LineChart>
+                  </ResponsiveContainer>
+                  <p className="text-center text-[11px] text-[#8b949e] pt-1.5 pb-0.5">Time (s)</p>
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
       )}
     </div>
