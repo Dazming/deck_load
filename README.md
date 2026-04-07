@@ -53,83 +53,104 @@ deck_load/
     └── demo_alternating_noise1.mp4     # 交变载荷+1%噪声演示视频
 ```
 
-## 环境配置
+## 快速开始
 
-使用 conda `test` 环境：
+### 1) 前置条件
+
+请先安装以下软件：
+
+- Python 3.10+（推荐用 conda）
+- Node.js 18+（建议 LTS 版本）
+- npm（随 Node.js 安装）
+- （可选）ffmpeg：如果你需要生成视频
+
+### 2) 克隆项目
+
+```bash
+git clone <your-repo-url>
+cd deck_load
+```
+
+### 3) 创建并安装 Python 环境（使用 conda 环境）
+
+```bash
+conda create -n test python=3.11 -y
+conda activate test
+pip install -r requirements.txt
+pip install flask flask-cors
+```
+
+如果你需要视频生成功能，再安装 ffmpeg：
+
+```bash
+conda install -n test ffmpeg -y
+```
+
+### 4) 安装前端依赖
+
+```bash
+cd frontend
+npm install
+cd ..
+```
+
+### 5) 检查数据和模型文件
+
+运行前请确认以下文件存在：
+
+- 数据集目录：`dataset/different_weight/train|val|test`
+- 模型权重：`checkpoints/best_model.pth`
+
+如果 `best_model.pth` 不存在，请先训练：
 
 ```bash
 conda activate test
-pip install -r requirements.txt
-```
-
-依赖：PyTorch >= 2.0、NumPy、Pandas、Matplotlib
-
-视频生成额外需要 ffmpeg：
-
-```bash
-conda install ffmpeg
-```
-
-## 使用方法
-
-### 1. 训练模型
-
-```bash
 python train.py
 ```
 
-主要超参数（详见 `config.py`）：
+## 运行项目
 
-| 参数 | 值 |
-|------|-----|
-| 滑动窗口大小 (s) | 7 |
-| BiGRU 隐藏维度 | 32 |
-| FC 层维度 | 64 → 32 |
-| 学习率 | 0.005（ReduceLROnPlateau 自动衰减） |
-| Batch Size | 64 |
-| 最大 Epoch | 3000 |
-| 早停 Patience | 300 |
-| Dropout | 0.2 |
-
-### 2. 评估模型
+### 1) 启动后端 API（终端 1）
 
 ```bash
-python evaluate.py
-```
-
-输出每个目标变量的 RPE 和 R² 指标，并生成预测对比图。
-
-### 3. 生成视频
-
-```bash
-# 不同车重（基于真实模型推理）
-python generate_video.py
-
-# 不同车速（合成数据演示，v=30 m/s）
-python generate_video_speed_demo.py
-
-# 交变载荷 + 1% 噪声（合成数据演示）
-python generate_video_alternating_demo.py
-```
-
-视频以 10 倍慢放展示实时预测过程，包含甲板俯视图和时序曲线对比。
-
-### 4. 启动前端仪表板
-
-```bash
-# 安装后端依赖
-pip install flask flask-cors
-
-# 启动 Flask API 后端（端口 5000）
+conda activate test
 python api_server.py
+```
 
-# 新终端 — 启动前端开发服务器
+启动后可访问健康检查接口：
+
+- [http://localhost:5000/api/health](http://localhost:5000/api/health)
+
+### 2) 启动前端（终端 2）
+
+```bash
 cd frontend
-npm install
 npm run dev
 ```
 
-浏览器打开 Vite 输出的地址（默认 http://localhost:5173）即可访问仪表板。
+打开终端输出的 Local 地址（通常是）：
+
+- [http://localhost:5173](http://localhost:5173)
+
+如果 5173 被占用，Vite 会自动切到 5174/5175，请以终端输出为准。
+
+### 3) Windows 一键启动（推荐）
+
+项目根目录提供了批处理脚本：
+
+```bat
+start_web.bat
+```
+
+它会自动：
+
+- 启动后端（`conda run -n test python api_server.py`）
+- 启动前端（`cd frontend && npm run dev`）
+- 尝试打开浏览器 `http://localhost:5173`
+
+注意：若 5173 被占用，前端会自动切换端口，请以前端终端输出的 Local 地址为准。
+
+## 功能页面说明
 
 前端共 3 个页面：
 
@@ -138,6 +159,25 @@ npm run dev
 | 模型架构 | `/` | AMF-BiGRU 网络结构图、数据处理流水线、超参数说明 |
 | 结果展示 | `/showcase` | 选择已有工况（车重/车速），查看真实值 vs 预测值对比图及 RPE/R² 指标 |
 | 在线预测 | `/predict` | 上传仅含传感器列（N1_UZ, N7_UZ, N1_AZ, N7_AZ）的 CSV，展示纯预测结果 |
+
+## 常用脚本
+
+```bash
+# 训练
+python train.py
+
+# 评估
+python evaluate.py
+
+# 视频（真实模型推理）
+python generate_video.py
+
+# 视频（合成数据：不同车速）
+python generate_video_speed_demo.py
+
+# 视频（合成数据：交变载荷 + 1% 噪声）
+python generate_video_alternating_demo.py
+```
 
 ## 测试结果
 
