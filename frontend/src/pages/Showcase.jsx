@@ -31,6 +31,16 @@ const CHART_UNITS = {
   rear_wheel_pos: 'm',
 }
 
+async function parseJsonSafely(res) {
+  const text = await res.text()
+  if (!text) return {}
+  try {
+    return JSON.parse(text)
+  } catch {
+    return { raw: text }
+  }
+}
+
 export default function Showcase() {
   const [conditions, setConditions] = useState([])
   const [weight, setWeight] = useState(45)
@@ -58,11 +68,11 @@ export default function Showcase() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ weight, speed }),
       })
+      const body = await parseJsonSafely(res)
       if (!res.ok) {
-        const body = await res.json()
-        throw new Error(body.error || `HTTP ${res.status}`)
+        throw new Error(body.error || body.raw || `HTTP ${res.status}`)
       }
-      setResult(await res.json())
+      setResult(body)
     } catch (e) {
       setError(e.message)
       setResult(null)

@@ -33,6 +33,14 @@ _acc_scaler = None
 _target_scaler = None
 
 
+@app.errorhandler(Exception)
+def handle_exception(e):
+    """Return JSON instead of HTML for unhandled server errors."""
+    code = getattr(e, "code", 500)
+    msg = str(e) if str(e) else "Internal server error"
+    return jsonify({"error": msg}), code
+
+
 def _fit_scalers():
     global _disp_scaler, _acc_scaler, _target_scaler
     if _disp_scaler is not None:

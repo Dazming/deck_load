@@ -29,6 +29,16 @@ const CHART_COLORS = {
 const HISTORY_KEY = 'deck_load_predict_history'
 const MAX_HISTORY = 10
 
+async function parseJsonSafely(res) {
+  const text = await res.text()
+  if (!text) return {}
+  try {
+    return JSON.parse(text)
+  } catch {
+    return { raw: text }
+  }
+}
+
 function formatTime(iso) {
   try {
     const d = new Date(iso)
@@ -94,11 +104,11 @@ export default function Upload() {
         method: 'POST',
         body: formData,
       })
+      const body = await parseJsonSafely(res)
       if (!res.ok) {
-        const body = await res.json()
-        throw new Error(body.error || `HTTP ${res.status}`)
+        throw new Error(body.error || body.raw || `HTTP ${res.status}`)
       }
-      const data = await res.json()
+      const data = body
       setResult(data)
       setActiveLabel(file.name)
       const entry = {
