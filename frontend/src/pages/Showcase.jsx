@@ -31,6 +31,28 @@ const CHART_UNITS = {
   rear_wheel_pos: 'm',
 }
 
+const API_FALLBACK_ORIGIN = 'http://127.0.0.1:5000'
+
+async function fetchApi(path, init) {
+  let proxyRes = null
+  try {
+    proxyRes = await fetch(`/api${path}`, init)
+  } catch {
+    proxyRes = null
+  }
+
+  if (!proxyRes || [502, 503, 504].includes(proxyRes.status)) {
+    try {
+      return await fetch(`${API_FALLBACK_ORIGIN}/api${path}`, init)
+    } catch (fallbackErr) {
+      if (proxyRes) return proxyRes
+      throw fallbackErr
+    }
+  }
+
+  return proxyRes
+}
+
 async function parseJsonSafely(res) {
   const text = await res.text()
   if (!text) return {}
@@ -50,7 +72,7 @@ export default function Showcase() {
   const [error, setError] = useState(null)
 
   useEffect(() => {
-    fetch('/api/conditions')
+    fetchApi('/conditions')
       .then((r) => r.json())
       .then(setConditions)
       .catch(() => {})
@@ -63,7 +85,7 @@ export default function Showcase() {
     setLoading(true)
     setError(null)
     try {
-      const res = await fetch('/api/predict', {
+      const res = await fetchApi('/predict', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ weight, speed }),
@@ -74,7 +96,11 @@ export default function Showcase() {
       }
       setResult(body)
     } catch (e) {
-      setError(e.message)
+      if (e?.message === 'Failed to fetch') {
+        setError('无法连接后端服务，请确认 API 已启动（http://127.0.0.1:5000）')
+      } else {
+        setError(e.message)
+      }
       setResult(null)
     } finally {
       setLoading(false)

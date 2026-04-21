@@ -1,8 +1,12 @@
 import os
 
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-DATA_DIR = os.path.join(BASE_DIR, "dataset", "different_weight")
-SAVE_DIR = os.path.join(BASE_DIR, "checkpoints")
+ROOT_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+DATA_DIR = os.path.join(ROOT_DIR, "dataset", "different_weight")
+SAVE_DIR = os.path.join(ROOT_DIR, "checkpoints", "case1")
+
+BEST_MODEL_NAME = "best_model_case1.pth"
+EVAL_FIG_NAME = "test_results_case1.png"
+PRED_VIDEO_NAME = "prediction_realtime_case1.mp4"
 
 # --- Data ---
 DISP_COLS = ["N1_UZ", "N7_UZ"]
@@ -17,13 +21,12 @@ VAL_FILES = [os.path.join(DATA_DIR, "val", "w38_v40_labeled.csv")]
 TEST_FILES = [os.path.join(DATA_DIR, "test", "w45_v40_labeled.csv")]
 
 # --- Model ---
-SEQ_LEN = 7          # sliding window size (s)
-DISP_FEATURES = 2    # displacement input dim per time step
-ACC_FEATURES = 2     # acceleration input dim per time step
-BIGRU_HIDDEN = 32    # BiGRU hidden size (each direction)
+SEQ_LEN = 7
+DISP_FEATURES = 2
+ACC_FEATURES = 2
+BIGRU_HIDDEN = 32
 FC1_DIM = 64
 FC2_DIM = 32
-FUSION_DIM = 32
 OUTPUT_DIM = 4
 DROPOUT = 0.2
 
@@ -37,3 +40,4 @@ LR_SCHEDULER_FACTOR = 0.5
 LR_MIN = 1e-6
 GRAD_CLIP = 1.0
 SEED = 42
+

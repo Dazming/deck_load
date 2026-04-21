@@ -1,8 +1,6 @@
 import torch
 import torch.nn as nn
 
-import config
-
 
 class ModalBranch(nn.Module):
     """Single-modality feature extractor: BiGRU -> FC -> ReLU -> Dropout -> FC -> ReLU -> Dropout."""
@@ -31,11 +29,7 @@ class ModalBranch(nn.Module):
 
 
 class AttentionFusion(nn.Module):
-    """
-    Attention-based feature-level fusion (Fig. 5).
-    Uses tanh-based additive attention to compute importance weights
-    for each modality, then produces a weighted combination.
-    """
+    """Tanh-based additive attention to fuse displacement & acceleration branch features."""
 
     def __init__(self, feature_dim):
         super().__init__()
@@ -44,27 +38,24 @@ class AttentionFusion(nn.Module):
 
     def forward(self, feat_disp, feat_acc):
         stacked = torch.stack([feat_disp, feat_acc], dim=1)  # (batch, 2, dim)
-        scores = self.v(torch.tanh(self.W(stacked)))         # (batch, 2, 1)
-        weights = torch.softmax(scores, dim=1)               # (batch, 2, 1)
-        fused = (weights * stacked).sum(dim=1)               # (batch, dim)
+        scores = self.v(torch.tanh(self.W(stacked)))  # (batch, 2, 1)
+        weights = torch.softmax(scores, dim=1)  # (batch, 2, 1)
+        fused = (weights * stacked).sum(dim=1)  # (batch, dim)
         return fused
 
 
 class AMFBiGRU(nn.Module):
-    """
-    Attention-based Multi-modal Fusion Bidirectional GRU (AMF-BiGRU).
-    Paper: Liu et al., Engineering Applications of AI, 2026.
-    """
+    """Attention-based Multi-modal Fusion Bidirectional GRU (AMF-BiGRU)."""
 
     def __init__(
         self,
-        disp_input_dim=config.DISP_FEATURES,
-        acc_input_dim=config.ACC_FEATURES,
-        hidden_dim=config.BIGRU_HIDDEN,
-        fc1_dim=config.FC1_DIM,
-        fc2_dim=config.FC2_DIM,
-        output_dim=config.OUTPUT_DIM,
-        dropout=config.DROPOUT,
+        disp_input_dim,
+        acc_input_dim,
+        hidden_dim,
+        fc1_dim,
+        fc2_dim,
+        output_dim,
+        dropout,
     ):
         super().__init__()
         self.disp_branch = ModalBranch(disp_input_dim, hidden_dim, fc1_dim, fc2_dim, dropout)
@@ -78,3 +69,4 @@ class AMFBiGRU(nn.Module):
         fused = self.attention_fusion(feat_disp, feat_acc)
         out = self.output_layer(fused)
         return out
+

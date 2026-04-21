@@ -28,6 +28,27 @@ const CHART_COLORS = {
 
 const HISTORY_KEY = 'deck_load_predict_history'
 const MAX_HISTORY = 10
+const API_FALLBACK_ORIGIN = 'http://127.0.0.1:5000'
+
+async function fetchApi(path, init) {
+  let proxyRes = null
+  try {
+    proxyRes = await fetch(`/api${path}`, init)
+  } catch {
+    proxyRes = null
+  }
+
+  if (!proxyRes || [502, 503, 504].includes(proxyRes.status)) {
+    try {
+      return await fetch(`${API_FALLBACK_ORIGIN}/api${path}`, init)
+    } catch (fallbackErr) {
+      if (proxyRes) return proxyRes
+      throw fallbackErr
+    }
+  }
+
+  return proxyRes
+}
 
 async function parseJsonSafely(res) {
   const text = await res.text()
@@ -100,7 +121,7 @@ export default function Upload() {
     try {
       const formData = new FormData()
       formData.append('file', file)
-      const res = await fetch('/api/upload_predict', {
+      const res = await fetchApi('/upload_predict', {
         method: 'POST',
         body: formData,
       })
@@ -128,7 +149,11 @@ export default function Upload() {
         return next
       })
     } catch (e) {
-      setError(e.message)
+      if (e?.message === 'Failed to fetch') {
+        setError('无法连接后端服务，请确认 API 已启动（http://127.0.0.1:5000）')
+      } else {
+        setError(e.message)
+      }
       setResult(null)
     } finally {
       setLoading(false)

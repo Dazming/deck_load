@@ -1,10 +1,10 @@
 """
-Demo video: AMF-BiGRU prediction for different vehicle speed (v = 30 m/s).
-Uses synthesized data (no real simulation / model needed).
+Demo video: AMF-BiGRU prediction for alternating load + 1% noise.
+Uses synthesized data based on paper equation (22) — no real simulation needed.
 Video duration = 10x vehicle running time.
 
 Usage:
-    conda run -n test python generate_video_speed_demo.py
+    conda run -n test python tools/video_demos/demo_video_alternating_noise.py
 
 Requires ffmpeg:
     conda install -n test ffmpeg
@@ -17,29 +17,27 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
 from matplotlib.gridspec import GridSpec
+from tqdm import tqdm
 from matplotlib.patches import FancyBboxPatch
 
 # ── Parameters ────────────────────────────────────────────────────────────
-VEHICLE_SPEED = 30.0       # m/s
-VEHICLE_WEIGHT = 45000.0   # N (per axle, 1:1 ratio)
+VEHICLE_SPEED = 40.0       # m/s (c in the formula)
+BASE_WEIGHT = 45000.0      # N (test set, paper eq. 22)
 AXLE_SPACING = 8.0         # m
 DECK_LENGTH = 40.0         # m
 DECK_WIDTH = 8.0           # m
 DT = 0.001                 # s
+NOISE_LEVEL = 0.01         # 1% noise
 
-TOTAL_TIME = (DECK_LENGTH + AXLE_SPACING) / VEHICLE_SPEED + 0.2  # extra margin
+TOTAL_TIME = (DECK_LENGTH + AXLE_SPACING) / VEHICLE_SPEED + 0.2
 SLOWDOWN = 10
 FPS = 30
 
-SAVE_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "checkpoints")
-OUTPUT_NAME = "demo_speed_30.mp4"
+SAVE_DIR = os.path.dirname(os.path.abspath(__file__))
+OUTPUT_NAME = "demo_alternating_noise1.mp4"
 
 N1_POS = 5.0
 N7_POS = 35.0
-
-# Noise levels to mimic prediction error (~RPE 0.3%-1%)
-WEIGHT_NOISE_STD = 180.0   # N
-POS_NOISE_STD = 0.08       # m
 
 # ── Visual style ──────────────────────────────────────────────────────────
 C_TRUE = "#00d4ff"
@@ -49,8 +47,15 @@ C_TIME = "#ffeaa7"
 C_SENSOR = "#a29bfe"
 
 
+def alternating_load(t):
+    """Paper equation (22): f(t) = 45000 * [1 + 0.1*sin(c*pi*t/4) + 0.05*sin(c*pi*t)]"""
+    c = VEHICLE_SPEED
+    return BASE_WEIGHT * (1.0 + 0.1 * np.sin(c * np.pi * t / 4.0)
+                              + 0.05 * np.sin(c * np.pi * t))
+
+
 def synthesize_data():
-    """Generate physically plausible true values and noisy predictions."""
+    """Generate alternating-load true values with 1% noise predictions."""
     n_steps = int(TOTAL_TIME / DT)
     times = np.arange(n_steps) * DT
 
@@ -63,9 +68,12 @@ def synthesize_data():
     true_fp = np.where(on_deck_front, front_pos_raw, 0.0)
     true_rp = np.where(on_deck_rear, rear_pos_raw, 0.0)
 
-    true_fw = np.where(on_deck_front, VEHICLE_WEIGHT, 0.0)
-    true_rw = np.where(on_deck_rear, VEHICLE_WEIGHT, 0.0)
+    # Alternating load (time-varying weight)
+    load_curve = alternating_load(times)
+    true_fw = np.where(on_deck_front, load_curve, 0.0)
+    true_rw = np.where(on_deck_rear, load_curve, 0.0)
 
+    # 1% noise on predictions: x' = x + N(0, k * sigma)
     rng = np.random.default_rng(42)
 
     def _smooth_noise(n, std, kernel_size=15):
@@ -73,17 +81,20 @@ def synthesize_data():
         kernel = np.ones(kernel_size) / kernel_size
         return np.convolve(raw, kernel, mode="same")
 
-    pred_fw = true_fw + _smooth_noise(n_steps, WEIGHT_NOISE_STD) * on_deck_front
-    pred_rw = true_rw + _smooth_noise(n_steps, WEIGHT_NOISE_STD) * on_deck_rear
-    pred_fp = true_fp + _smooth_noise(n_steps, POS_NOISE_STD) * on_deck_front
-    pred_rp = true_rp + _smooth_noise(n_steps, POS_NOISE_STD) * on_deck_rear
+    wt_sigma = np.std(true_fw[on_deck_front]) if on_deck_front.any() else 1.0
+    pos_sigma = np.std(true_fp[on_deck_front]) if on_deck_front.any() else 1.0
 
-    # Small transient at on/off-deck edges for realism
+    pred_fw = true_fw + _smooth_noise(n_steps, NOISE_LEVEL * wt_sigma) * on_deck_front
+    pred_rw = true_rw + _smooth_noise(n_steps, NOISE_LEVEL * wt_sigma) * on_deck_rear
+    pred_fp = true_fp + _smooth_noise(n_steps, NOISE_LEVEL * pos_sigma) * on_deck_front
+    pred_rp = true_rp + _smooth_noise(n_steps, NOISE_LEVEL * pos_sigma) * on_deck_rear
+
+    # Transient at on/off-deck edges
     for arr_pred, mask in [(pred_fw, on_deck_front), (pred_rw, on_deck_rear)]:
         transitions = np.where(np.diff(mask.astype(int)))[0]
         for t_idx in transitions:
             win = slice(max(t_idx - 8, 0), min(t_idx + 12, n_steps))
-            arr_pred[win] += rng.normal(0, WEIGHT_NOISE_STD * 2, len(arr_pred[win]))
+            arr_pred[win] += rng.normal(0, NOISE_LEVEL * wt_sigma * 3, len(arr_pred[win]))
 
     pred_fw = np.clip(pred_fw, 0, None)
     pred_rw = np.clip(pred_rw, 0, None)
@@ -102,8 +113,9 @@ def generate_video():
     video_dur = data_dur * SLOWDOWN
     total_frames = int(video_dur * FPS)
 
-    print(f"Speed: {VEHICLE_SPEED} m/s  |  Samples: {n}  |  "
-          f"Data: {data_dur:.3f}s  |  Video: {video_dur:.1f}s ({total_frames} frames)")
+    print(f"Alternating load + {NOISE_LEVEL*100:.0f}% noise  |  "
+          f"Samples: {n}  |  Data: {data_dur:.3f}s  |  "
+          f"Video: {video_dur:.1f}s ({total_frames} frames)")
 
     # ── Figure ────────────────────────────────────────────────────────────
     plt.rcParams.update({
@@ -131,9 +143,9 @@ def generate_video():
     ax_rp_plot = fig.add_subplot(gs[2, 1])
 
     fig.suptitle(
-        f"AMF-BiGRU  Different Speed  (v = {VEHICLE_SPEED:.0f} m/s,  "
-        f"w = {VEHICLE_WEIGHT/1000:.0f} kN)",
-        fontsize=16, fontweight="bold", color="white", y=0.96,
+        f"AMF-BiGRU  Alternating Load + {NOISE_LEVEL*100:.0f}% Noise  "
+        f"(v = {VEHICLE_SPEED:.0f} m/s,  base = {BASE_WEIGHT/1000:.0f} kN)",
+        fontsize=15, fontweight="bold", color="white", y=0.96,
     )
 
     # ── Deck view ─────────────────────────────────────────────────────────
@@ -253,7 +265,6 @@ def generate_video():
         pred_front_dot.set_data([fp_p], [yp])
         pred_rear_dot.set_data([rp_p], [yp])
 
-        # Body lines
         for body, f_pos, r_pos, y_lane in [
             (true_body_line, fp_t, rp_t, yt),
             (pred_body_line, fp_p, rp_p, yp),
@@ -285,20 +296,23 @@ def generate_video():
         time_text.set_text(f"Time: {t_now:.3f} s / {data_dur:.3f} s")
         prog_bar.set_width(progress)
 
-        if (frame + 1) % max(total_frames // 20, 1) == 0 or frame == 0:
-            print(f"  [{frame+1:>{len(str(total_frames))}}/{total_frames}]  "
-                  f"{progress*100:5.1f}%  t={t_now:.3f}s")
-
         return []
-
-    print("\nRendering video ...")
-    anim = animation.FuncAnimation(fig, update, frames=total_frames, blit=False)
 
     os.makedirs(SAVE_DIR, exist_ok=True)
     out_path = os.path.join(SAVE_DIR, OUTPUT_NAME)
     writer = animation.FFMpegWriter(fps=FPS, bitrate=3000,
                                      extra_args=["-pix_fmt", "yuv420p"])
-    anim.save(out_path, writer=writer)
+    dpi = fig.dpi
+    print("\nRendering video ...")
+    with writer.saving(fig, out_path, dpi):
+        for frame in tqdm(
+            range(total_frames),
+            desc="Encoding video",
+            unit="frame",
+            mininterval=0.5,
+        ):
+            update(frame)
+            writer.grab_frame()
     plt.close(fig)
 
     size_mb = os.path.getsize(out_path) / 1024 / 1024

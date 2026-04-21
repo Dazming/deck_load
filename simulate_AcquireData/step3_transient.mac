@@ -1,0 +1,103 @@
+!/==========================================================
+! step3_transient.mac -- Transient dynamics analysis (1200 steps, moving load)
+! Run after: step2_modal.mac (ALPHA_R and BETA_R must be in memory)
+! If ANSYS was restarted, manually enter ALPHA_R and BETA_R first
+!/==========================================================
+
+!----------------------------------------
+! 4.1 Set transient analysis parameters
+! ANTYPE,TRANS = transient analysis, TRNOPT,FULL = full method
+! ALPHAD/BETAD = Rayleigh damping coefficients (from step2)
+! OUTRES,ALL,ALL = save all results for all steps
+! KBC,1 = stepped (abrupt) load change between steps
+! DELTIM,dt = time step size (0.0013333333s, 1200 steps = 1.6s total)
+! TIMINT,ON = enable time integration (solve equation of motion)
+! IC,ALL,UZ,0,0 = initial conditions: zero displacement and zero velocity
+!----------------------------------------
+/SOLU
+ANTYPE,TRANS
+TRNOPT,FULL
+ALPHAD,ALPHA_R
+BETAD, BETA_R
+OUTRES,ALL,ALL
+KBC,1
+DELTIM,0.0013333333,0.0013333333,0.0013333333
+TIMINT,ON
+IC,ALL,UZ,0,0
+
+!----------------------------------------
+! 4.2 Define load parameters
+! SPEED  = vehicle speed (30 m/s)
+! AXLE_D = wheelbase, distance front-to-rear axle (8 m)
+! F_AXLE = load per axle in Newtons (45000 N = 45 kN, downward)
+! DX     = mesh size in meters (must match ESIZE=0.2 in step1)
+!----------------------------------------
+SPEED  = 30.0
+AXLE_D = 8.0
+F_AXLE = 45000.0
+DX     = 0.2
+
+!----------------------------------------
+! 4.3 Solve 1200 time steps in a loop
+! Each step: compute axle positions -> clear previous loads -> apply new loads -> solve
+! Front axle position: x_front = speed * time
+! Rear axle position: x_rear  = x_front - axle_distance
+! Loads are applied only when axle x is within [0, 40] (on the deck)
+! Linear interpolation distributes each axle load to the two nearest nodes
+!----------------------------------------
+*DO,ISTEP,1,1200
+
+  T_CURR  = ISTEP*0.0013333333
+  X_FRONT = SPEED*T_CURR
+  X_REAR  = X_FRONT - AXLE_D
+
+  TIME,T_CURR
+  FDELE,ALL,FZ
+
+  !-- Front axle load (linear interpolation to two adjacent nodes) --
+  ! Load fraction: (1-frac)*F to left node, frac*F to right node
+  ! Total load always equals F regardless of position (avoids node snapping error)
+  *IF,X_FRONT,GE,0.0,AND,X_FRONT,LE,40.0,THEN
+    IX_F   = NINT(X_FRONT/DX - 0.5)
+    FRAC_F = (X_FRONT - IX_F*DX)/DX
+    XL_F   = IX_F*DX
+    XR_F   = XL_F + DX
+    *IF,XR_F,GT,40.0,THEN
+      XR_F   = 40.0
+      FRAC_F = 0.0
+    *ENDIF
+    NF_L = NODE(XL_F,0.0,0.0)
+    NF_R = NODE(XR_F,0.0,0.0)
+    *IF,NF_L,GT,0,THEN
+      F,NF_L,FZ,(-F_AXLE*(1.0-FRAC_F))
+    *ENDIF
+    *IF,NF_R,GT,0,AND,FRAC_F,GT,1E-9,THEN
+      F,NF_R,FZ,(-F_AXLE*FRAC_F)
+    *ENDIF
+  *ENDIF
+
+  !-- Rear axle load (same method as front axle) --
+  *IF,X_REAR,GE,0.0,AND,X_REAR,LE,40.0,THEN
+    IX_R   = NINT(X_REAR/DX - 0.5)
+    FRAC_R = (X_REAR - IX_R*DX)/DX
+    XL_R   = IX_R*DX
+    XR_R   = XL_R + DX
+    *IF,XR_R,GT,40.0,THEN
+      XR_R   = 40.0
+      FRAC_R = 0.0
+    *ENDIF
+    NR_L = NODE(XL_R,0.0,0.0)
+    NR_R = NODE(XR_R,0.0,0.0)
+    *IF,NR_L,GT,0,THEN
+      F,NR_L,FZ,(-F_AXLE*(1.0-FRAC_R))
+    *ENDIF
+    *IF,NR_R,GT,0,AND,FRAC_R,GT,1E-9,THEN
+      F,NR_R,FZ,(-F_AXLE*FRAC_R)
+    *ENDIF
+  *ENDIF
+
+  SOLVE
+
+*ENDDO
+
+FINISH

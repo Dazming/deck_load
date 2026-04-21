@@ -1,0 +1,50 @@
+!/==========================================================
+! post_only.mac -- Define N1~N7 displacement and acceleration variables in POST26
+! Run after: step3_transient.mac
+!/==========================================================
+
+/POST26
+NUMVAR,200
+
+!----------------------------------------
+! Locate nodes using NODE(x,y,z) function
+! NODE returns the node number at the given coordinate
+!----------------------------------------
+N1 = NODE( 5, 2, 0)
+N2 = NODE(10,-2, 0)
+N3 = NODE(15, 2, 0)
+N4 = NODE(20,-2, 0)
+N5 = NODE(25, 2, 0)
+N6 = NODE(30,-2, 0)
+N7 = NODE(35, 2, 0)
+
+*MSG,INFO,N1,N2,N3,N4,N5,N6,N7
+Node numbers: N1=%I N2=%I N3=%I N4=%I N5=%I N6=%I N7=%I
+
+!----------------------------------------
+! Define variables: displacement (UZ) and acceleration (AZ) for each point
+! NSOL syntax: NSOL, var_num, node_id, quantity, direction, label
+!----------------------------------------
+
+NSOL, 2,N1,U,Z,N1_UZ
+NSOL, 3,N1,A,Z,N1_AZ
+NSOL, 4,N2,U,Z,N2_UZ
+NSOL, 5,N2,A,Z,N2_AZ
+NSOL, 6,N3,U,Z,N3_UZ
+NSOL, 7,N3,A,Z,N3_AZ
+NSOL, 8,N4,U,Z,N4_UZ
+NSOL, 9,N4,A,Z,N4_AZ
+NSOL,10,N5,U,Z,N5_UZ
+NSOL,11,N5,A,Z,N5_AZ
+NSOL,12,N6,U,Z,N6_UZ
+NSOL,13,N6,A,Z,N6_AZ
+NSOL,14,N7,U,Z,N7_UZ
+NSOL,15,N7,A,Z,N7_AZ
+
+!----------------------------------------
+! Usage:
+!   PLVAR,2,3       -- plot N1 displacement and acceleration
+!   PLVAR,4,5       -- plot N2
+!   PRVAR,1,2,3     -- print variable values
+!   /OUTPUT,file,txt / PRVAR,... /OUTPUT  -- export to file
+!----------------------------------------

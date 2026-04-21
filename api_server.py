@@ -14,13 +14,14 @@ import torch
 from flask import Flask, jsonify, request, send_from_directory
 from flask_cors import CORS
 
-import config
-from data_loader import (
+from cases.case1 import config as case_config
+from shared.data_pipeline import (
     StandardScaler,
     build_sliding_windows,
     load_csv_files,
+    prediction_time_axis_from_dataframe,
 )
-from model import AMFBiGRU
+from shared.model_arch import AMFBiGRU
 
 app = Flask(__name__)
 CORS(app)
@@ -45,21 +46,29 @@ def _fit_scalers():
     global _disp_scaler, _acc_scaler, _target_scaler
     if _disp_scaler is not None:
         return
-    train_frames = load_csv_files(config.TRAIN_FILES)
+    train_frames = load_csv_files(case_config.TRAIN_FILES)
     train_all = pd.concat(train_frames, ignore_index=True)
-    _disp_scaler = StandardScaler().fit(train_all[config.DISP_COLS].values)
-    _acc_scaler = StandardScaler().fit(train_all[config.ACC_COLS].values)
-    _target_scaler = StandardScaler().fit(train_all[config.TARGET_COLS].values)
+    _disp_scaler = StandardScaler().fit(train_all[case_config.DISP_COLS].values)
+    _acc_scaler = StandardScaler().fit(train_all[case_config.ACC_COLS].values)
+    _target_scaler = StandardScaler().fit(train_all[case_config.TARGET_COLS].values)
 
 
 def _load_model():
     global _model
     if _model is not None:
         return _model
-    ckpt = os.path.join(config.SAVE_DIR, "best_model.pth")
+    ckpt = os.path.join(case_config.SAVE_DIR, case_config.BEST_MODEL_NAME)
     if not os.path.exists(ckpt):
         return None
-    _model = AMFBiGRU().to(device)
+    _model = AMFBiGRU(
+        disp_input_dim=case_config.DISP_FEATURES,
+        acc_input_dim=case_config.ACC_FEATURES,
+        hidden_dim=case_config.BIGRU_HIDDEN,
+        fc1_dim=case_config.FC1_DIM,
+        fc2_dim=case_config.FC2_DIM,
+        output_dim=case_config.OUTPUT_DIM,
+        dropout=case_config.DROPOUT,
+    ).to(device)
     _model.load_state_dict(torch.load(ckpt, map_location=device, weights_only=True))
     _model.eval()
     return _model
@@ -74,11 +83,11 @@ def _run_inference(csv_path: str):
     df = pd.read_csv(csv_path)
     df.columns = df.columns.str.strip()
 
-    disp = _disp_scaler.transform(df[config.DISP_COLS].values)
-    acc = _acc_scaler.transform(df[config.ACC_COLS].values)
-    tgt = _target_scaler.transform(df[config.TARGET_COLS].values)
+    disp = _disp_scaler.transform(df[case_config.DISP_COLS].values)
+    acc = _acc_scaler.transform(df[case_config.ACC_COLS].values)
+    tgt = _target_scaler.transform(df[case_config.TARGET_COLS].values)
 
-    xd, xa, y = build_sliding_windows(disp, acc, tgt, config.SEQ_LEN)
+    xd, xa, y = build_sliding_windows(disp, acc, tgt, case_config.SEQ_LEN)
     xd_t = torch.tensor(xd, dtype=torch.float32).to(device)
     xa_t = torch.tensor(xa, dtype=torch.float32).to(device)
 
@@ -88,9 +97,11 @@ def _run_inference(csv_path: str):
     preds_orig = _target_scaler.inverse_transform(preds)
     targets_orig = _target_scaler.inverse_transform(y)
 
-    dt = 0.001
     n = len(targets_orig)
-    times = (np.arange(n) * dt + config.SEQ_LEN * dt).tolist()
+    times_arr = prediction_time_axis_from_dataframe(df, case_config.SEQ_LEN)
+    if len(times_arr) != n:
+        raise ValueError("Time axis length mismatch; check TIME column and CSV row count.")
+    times = times_arr.tolist()
 
     def _rpe(yt, yp):
         return float(np.linalg.norm(yt - yp) / np.linalg.norm(yt) * 100)
@@ -106,7 +117,7 @@ def _run_inference(csv_path: str):
 
     metrics = {}
     series = {}
-    for i, col in enumerate(config.TARGET_COLS):
+    for i, col in enumerate(case_config.TARGET_COLS):
         metrics[col] = {
             "rpe": round(_rpe(targets_orig[:, i], preds_orig[:, i]), 4),
             "r2": round(_r2(targets_orig[:, i], preds_orig[:, i]), 6),
@@ -126,7 +137,7 @@ def _run_inference(csv_path: str):
 def _discover_conditions():
     conditions = []
     for split in ["train", "val", "test"]:
-        folder = os.path.join(config.DATA_DIR, split)
+        folder = os.path.join(case_config.DATA_DIR, split)
         if not os.path.isdir(folder):
             continue
         for fname in sorted(os.listdir(folder)):
@@ -151,7 +162,7 @@ def _discover_conditions():
 
 @app.route("/api/health")
 def health():
-    ckpt = os.path.join(config.SAVE_DIR, "best_model.pth")
+    ckpt = os.path.join(case_config.SAVE_DIR, case_config.BEST_MODEL_NAME)
     return jsonify({"status": "ok", "model_loaded": os.path.exists(ckpt)})
 
 
@@ -177,7 +188,7 @@ def predict():
 
     result = _run_inference(match["path"])
     if result is None:
-        return jsonify({"error": "Model not trained yet (best_model.pth missing)"}), 503
+        return jsonify({"error": f"Model not trained yet ({case_config.BEST_MODEL_NAME} missing)"}), 503
 
     result["condition"] = {"weight": w, "speed": v, "split": match["split"]}
     return jsonify(result)
@@ -207,7 +218,7 @@ def upload_predict():
     _fit_scalers()
     model = _load_model()
     if model is None:
-        return jsonify({"error": "Model not trained yet (best_model.pth missing)"}), 503
+        return jsonify({"error": f"Model not trained yet ({case_config.BEST_MODEL_NAME} missing)"}), 503
 
     file = request.files["file"]
     try:
@@ -217,19 +228,19 @@ def upload_predict():
 
     df.columns = df.columns.str.strip()
 
-    required = config.DISP_COLS + config.ACC_COLS
+    required = case_config.DISP_COLS + case_config.ACC_COLS
     missing = [c for c in required if c not in df.columns]
     if missing:
         return jsonify({"error": f"Missing columns: {missing}"}), 400
 
-    disp = _disp_scaler.transform(df[config.DISP_COLS].values)
-    acc = _acc_scaler.transform(df[config.ACC_COLS].values)
+    disp = _disp_scaler.transform(df[case_config.DISP_COLS].values)
+    acc = _acc_scaler.transform(df[case_config.ACC_COLS].values)
 
     n = len(disp)
     X_disp, X_acc = [], []
-    for i in range(config.SEQ_LEN - 1, n):
-        X_disp.append(disp[i - config.SEQ_LEN + 1: i + 1])
-        X_acc.append(acc[i - config.SEQ_LEN + 1: i + 1])
+    for i in range(case_config.SEQ_LEN - 1, n):
+        X_disp.append(disp[i - case_config.SEQ_LEN + 1: i + 1])
+        X_acc.append(acc[i - case_config.SEQ_LEN + 1: i + 1])
 
     xd_t = torch.tensor(np.array(X_disp), dtype=torch.float32).to(device)
     xa_t = torch.tensor(np.array(X_acc), dtype=torch.float32).to(device)
@@ -239,15 +250,17 @@ def upload_predict():
 
     preds_orig = _target_scaler.inverse_transform(preds)
 
-    dt = 0.001
     n_out = len(preds_orig)
-    times = (np.arange(n_out) * dt + config.SEQ_LEN * dt).tolist()
+    times_arr = prediction_time_axis_from_dataframe(df, case_config.SEQ_LEN)
+    if len(times_arr) != n_out:
+        return jsonify({"error": "Time axis length mismatch; check TIME column and row count."}), 400
+    times = times_arr.tolist()
 
     step = max(1, n_out // 300)
     idx = list(range(0, n_out, step))
 
     series = {}
-    output_names = config.TARGET_COLS
+    output_names = case_config.TARGET_COLS
     for i, col in enumerate(output_names):
         series[col] = {"pred": [float(preds_orig[j, i]) for j in idx]}
 
@@ -259,9 +272,7 @@ def upload_predict():
 
 @app.route("/api/videos")
 def list_videos():
-    video_dir = os.path.join(config.BASE_DIR, "videos")
-    if not os.path.isdir(video_dir):
-        video_dir = config.BASE_DIR
+    video_dir = case_config.SAVE_DIR
     videos = []
     for fname in sorted(os.listdir(video_dir)):
         if fname.endswith(".mp4"):
@@ -271,15 +282,13 @@ def list_videos():
 
 @app.route("/api/video/<path:filename>")
 def serve_video(filename):
-    video_dir = os.path.join(config.BASE_DIR, "videos")
-    if not os.path.isdir(video_dir):
-        video_dir = config.BASE_DIR
+    video_dir = case_config.SAVE_DIR
     return send_from_directory(video_dir, filename)
 
 
 if __name__ == "__main__":
     print(f"[API] device = {device}")
-    print(f"[API] data dir = {config.DATA_DIR}")
+    print(f"[API] data dir = {case_config.DATA_DIR}")
     _fit_scalers()
     _load_model()
     app.run(host="0.0.0.0", port=5000, debug=True)
