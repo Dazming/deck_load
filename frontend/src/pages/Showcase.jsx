@@ -4,6 +4,7 @@ import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend,
   ResponsiveContainer,
 } from 'recharts'
+import { fetchApi, getFriendlyApiError } from '../utils/apiClient'
 
 function MetricBadge({ label, value, unit = '' }) {
   return (
@@ -29,28 +30,6 @@ const CHART_UNITS = {
   rear_axle_wt: 'N',
   front_wheel_pos: 'm',
   rear_wheel_pos: 'm',
-}
-
-const API_FALLBACK_ORIGIN = 'http://127.0.0.1:5000'
-
-async function fetchApi(path, init) {
-  let proxyRes = null
-  try {
-    proxyRes = await fetch(`/api${path}`, init)
-  } catch {
-    proxyRes = null
-  }
-
-  if (!proxyRes || [502, 503, 504].includes(proxyRes.status)) {
-    try {
-      return await fetch(`${API_FALLBACK_ORIGIN}/api${path}`, init)
-    } catch (fallbackErr) {
-      if (proxyRes) return proxyRes
-      throw fallbackErr
-    }
-  }
-
-  return proxyRes
 }
 
 async function parseJsonSafely(res) {
@@ -96,11 +75,7 @@ export default function Showcase() {
       }
       setResult(body)
     } catch (e) {
-      if (e?.message === 'Failed to fetch') {
-        setError('无法连接后端服务，请确认 API 已启动（http://127.0.0.1:5000）')
-      } else {
-        setError(e.message)
-      }
+      setError(getFriendlyApiError(e?.message))
       setResult(null)
     } finally {
       setLoading(false)

@@ -4,6 +4,7 @@ import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer,
 } from 'recharts'
+import { fetchApi, getFriendlyApiError } from '../utils/apiClient'
 
 const CHART_TITLES = {
   front_axle_wt: '前轴重量',
@@ -28,28 +29,6 @@ const CHART_COLORS = {
 
 const HISTORY_KEY = 'deck_load_predict_history'
 const MAX_HISTORY = 10
-const API_FALLBACK_ORIGIN = 'http://127.0.0.1:5000'
-
-async function fetchApi(path, init) {
-  let proxyRes = null
-  try {
-    proxyRes = await fetch(`/api${path}`, init)
-  } catch {
-    proxyRes = null
-  }
-
-  if (!proxyRes || [502, 503, 504].includes(proxyRes.status)) {
-    try {
-      return await fetch(`${API_FALLBACK_ORIGIN}/api${path}`, init)
-    } catch (fallbackErr) {
-      if (proxyRes) return proxyRes
-      throw fallbackErr
-    }
-  }
-
-  return proxyRes
-}
-
 async function parseJsonSafely(res) {
   const text = await res.text()
   if (!text) return {}
@@ -149,11 +128,7 @@ export default function Upload() {
         return next
       })
     } catch (e) {
-      if (e?.message === 'Failed to fetch') {
-        setError('无法连接后端服务，请确认 API 已启动（http://127.0.0.1:5000）')
-      } else {
-        setError(e.message)
-      }
+      setError(getFriendlyApiError(e?.message))
       setResult(null)
     } finally {
       setLoading(false)
@@ -300,9 +275,16 @@ export default function Upload() {
             <ul className="space-y-2 overflow-y-auto flex-1 pr-1">
               {history.map((h) => (
                 <li key={h.id}>
-                  <button
-                    type="button"
+                  <div
+                    role="button"
+                    tabIndex={0}
                     onClick={() => loadFromHistory(h)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault()
+                        loadFromHistory(h)
+                      }
+                    }}
                     className={`w-full text-left rounded-lg border px-3 py-2.5 text-xs transition-colors group ${
                       activeHistoryId === h.id
                         ? 'border-[#00d4ff]/50 bg-[#00d4ff]/10'
@@ -323,7 +305,7 @@ export default function Upload() {
                         <X size={14} />
                       </button>
                     </div>
-                  </button>
+                  </div>
                 </li>
               ))}
             </ul>

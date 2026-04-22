@@ -86,6 +86,10 @@ def _run_inference(csv_path: str):
     disp = _disp_scaler.transform(df[case_config.DISP_COLS].values)
     acc = _acc_scaler.transform(df[case_config.ACC_COLS].values)
     tgt = _target_scaler.transform(df[case_config.TARGET_COLS].values)
+    if len(disp) < case_config.SEQ_LEN:
+        raise ValueError(
+            f"CSV rows ({len(disp)}) must be >= SEQ_LEN ({case_config.SEQ_LEN})."
+        )
 
     xd, xa, y = build_sliding_windows(disp, acc, tgt, case_config.SEQ_LEN)
     xd_t = torch.tensor(xd, dtype=torch.float32).to(device)
@@ -235,6 +239,13 @@ def upload_predict():
 
     disp = _disp_scaler.transform(df[case_config.DISP_COLS].values)
     acc = _acc_scaler.transform(df[case_config.ACC_COLS].values)
+    if len(disp) < case_config.SEQ_LEN:
+        return jsonify({
+            "error": (
+                f"CSV rows ({len(disp)}) must be >= SEQ_LEN ({case_config.SEQ_LEN}) "
+                "for sliding-window prediction."
+            )
+        }), 400
 
     n = len(disp)
     X_disp, X_acc = [], []
