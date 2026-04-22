@@ -1,4 +1,5 @@
 import os
+from shared import model_hparams as M
 
 ROOT_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 DATA_DIR = os.path.join(ROOT_DIR, "dataset", "different_weight")
@@ -20,15 +21,15 @@ TRAIN_FILES = [
 VAL_FILES = [os.path.join(DATA_DIR, "val", "w38_v40_labeled.csv")]
 TEST_FILES = [os.path.join(DATA_DIR, "test", "w45_v40_labeled.csv")]
 
-# --- Model ---
-SEQ_LEN = 7
-DISP_FEATURES = 2
-ACC_FEATURES = 2
-BIGRU_HIDDEN = 32
-FC1_DIM = 64
-FC2_DIM = 32
-OUTPUT_DIM = 4
-DROPOUT = 0.2
+# --- Model (shared across all cases) ---
+SEQ_LEN = M.SEQ_LEN
+DISP_FEATURES = M.DISP_FEATURES
+ACC_FEATURES = M.ACC_FEATURES
+BIGRU_HIDDEN = M.BIGRU_HIDDEN
+FC1_DIM = M.FC1_DIM
+FC2_DIM = M.FC2_DIM
+OUTPUT_DIM = M.OUTPUT_DIM
+DROPOUT = M.DROPOUT
 
 # --- Training ---
 LR = 0.005
