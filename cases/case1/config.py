@@ -1,7 +1,13 @@
 import os
-from shared import model_hparams as M
+import sys
 
 ROOT_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+if ROOT_DIR not in sys.path:
+    sys.path.insert(0, ROOT_DIR)
+
+from shared import model_hparams as M
+from shared import training_hparams as T
+
 DATA_DIR = os.path.join(ROOT_DIR, "dataset", "different_weight")
 SAVE_DIR = os.path.join(ROOT_DIR, "checkpoints", "case1")
 
@@ -32,13 +38,13 @@ OUTPUT_DIM = M.OUTPUT_DIM
 DROPOUT = M.DROPOUT
 
 # --- Training ---
-LR = 0.005
-BATCH_SIZE = 64
-MAX_EPOCHS = 3000
-EARLY_STOP_PATIENCE = 300
-LR_SCHEDULER_PATIENCE = 60
-LR_SCHEDULER_FACTOR = 0.5
-LR_MIN = 1e-6
-GRAD_CLIP = 1.0
-SEED = 42
+LR = T.LR
+BATCH_SIZE = T.BATCH_SIZE
+MAX_EPOCHS = T.MAX_EPOCHS
+EARLY_STOP_PATIENCE = T.EARLY_STOP_PATIENCE
+LR_SCHEDULER_PATIENCE = T.LR_SCHEDULER_PATIENCE
+LR_SCHEDULER_FACTOR = T.LR_SCHEDULER_FACTOR
+LR_MIN = T.LR_MIN
+GRAD_CLIP = T.GRAD_CLIP
+SEED = T.SEED
 
