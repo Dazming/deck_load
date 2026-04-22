@@ -105,7 +105,9 @@ def train():
             print(f"\nEarly stopping at epoch {epoch}. Best epoch: {best_epoch}")
             break
 
-    print(f"\nModel saved to {os.path.join(config.SAVE_DIR, config.BEST_MODEL_NAME)}")
+    total_time = time.time() - t_start
+    print(f"\nTraining complete in {total_time:.1f}s. Best val loss: {best_val_loss:.6e} at epoch {best_epoch}")
+    print(f"Model saved to {os.path.join(config.SAVE_DIR, config.BEST_MODEL_NAME)}")
 
 
 if __name__ == "__main__":
