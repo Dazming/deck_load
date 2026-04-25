@@ -56,6 +56,7 @@ export default function Architecture() {
           <FlowStep icon={Layers} title="滑动窗口" subtitle={`窗口大小 = 7`} color="#fbbf24" />
           <FlowStep icon={GitBranch} title="双模态分支" subtitle="BiGRU 特征提取" color="#00b894" />
           <FlowStep icon={Zap} title="注意力融合" subtitle="自适应权重" color="#ff6b6b" />
+          <FlowStep icon={Target} title="异常点修复" subtitle="按轴在甲板上约束" color="#a78bfa" />
           <FlowStep icon={Target} title="输出层" subtitle="4维预测" color="#00d4ff" isLast />
         </div>
       </Card>
@@ -84,7 +85,7 @@ export default function Architecture() {
               <div className="flex-1 bg-[#00b894]/10 border border-[#00b894]/30 rounded-lg p-3">
                 <p className="text-xs text-[#00b894] font-medium text-center">位移 BiGRU 分支</p>
                 <div className="mt-2 space-y-1 text-xs text-[#8b949e]">
-                  <p>BiGRU(2→32×2)</p>
+                  <p>BiGRU(in=2/7 → 32×2)</p>
                   <p>FC(64→64) + ReLU + Dropout</p>
                   <p>FC(64→32) + ReLU + Dropout</p>
                 </div>
@@ -92,7 +93,7 @@ export default function Architecture() {
               <div className="flex-1 bg-[#00b894]/10 border border-[#00b894]/30 rounded-lg p-3">
                 <p className="text-xs text-[#00b894] font-medium text-center">加速度 BiGRU 分支</p>
                 <div className="mt-2 space-y-1 text-xs text-[#8b949e]">
-                  <p>BiGRU(2→32×2)</p>
+                  <p>BiGRU(in=2/7 → 32×2)</p>
                   <p>FC(64→64) + ReLU + Dropout</p>
                   <p>FC(64→32) + ReLU + Dropout</p>
                 </div>
@@ -113,6 +114,17 @@ export default function Architecture() {
               <p className="text-xs text-[#8b949e] mt-1">
                 [前轴重量, 后轴重量, 前轮位置, 后轮位置]
               </p>
+            </div>
+
+            <div className="bg-[#0d1117] border border-[#30363d] rounded-lg p-3">
+              <p className="text-xs text-[#e6edf3] font-medium">预测后处理（case1/case2 通用）</p>
+              <div className="mt-2 space-y-1 text-xs text-[#8b949e]">
+                <p>• 异常点检测 + 连续异常段插值修复</p>
+                <p>• 按轴是否在甲板上分段（去抖动）</p>
+                <p>• off-deck 强制位置归零（可选轴重归零）</p>
+                <p>• on-deck 位置约束到 [0, 40] 且单调不减</p>
+                <p>• 全局开关：shared/prediction_postprocess_hparams.py → ENABLE</p>
+              </div>
             </div>
           </div>
         </Card>
