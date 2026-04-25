@@ -44,6 +44,8 @@ async function parseJsonSafely(res) {
 
 export default function Showcase() {
   const [conditions, setConditions] = useState([])
+  const [caseName, setCaseName] = useState('case1')
+  const [videos, setVideos] = useState([])
   const [weight, setWeight] = useState(45)
   const [speed, setSpeed] = useState(40)
   const [result, setResult] = useState(null)
@@ -54,11 +56,31 @@ export default function Showcase() {
     fetchApi('/conditions')
       .then((r) => r.json())
       .then(setConditions)
-      .catch(() => {})
+      .catch(() => { })
   }, [])
 
-  const weights = [...new Set(conditions.map((c) => c.weight))].sort((a, b) => a - b)
-  const speeds = [...new Set(conditions.map((c) => c.speed))].sort((a, b) => a - b)
+  useEffect(() => {
+    fetchApi(`/videos?case=${caseName}`)
+      .then((r) => r.json())
+      .then((rows) => {
+        if (Array.isArray(rows)) setVideos(rows)
+        else setVideos([])
+      })
+      .catch(() => setVideos([]))
+  }, [caseName])
+
+  const caseConditions = conditions.filter((c) => c.case === caseName)
+  const weights = [...new Set(caseConditions.map((c) => c.weight))].sort((a, b) => a - b)
+  const speeds = [...new Set(caseConditions.map((c) => c.speed))].sort((a, b) => a - b)
+
+  useEffect(() => {
+    if (weights.length > 0 && !weights.includes(weight)) {
+      setWeight(weights[0])
+    }
+    if (speeds.length > 0 && !speeds.includes(speed)) {
+      setSpeed(speeds[0])
+    }
+  }, [weights, speeds, weight, speed])
 
   const handlePredict = useCallback(async () => {
     setLoading(true)
@@ -67,7 +89,7 @@ export default function Showcase() {
       const res = await fetchApi('/predict', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ weight, speed }),
+        body: JSON.stringify({ case: caseName, weight, speed }),
       })
       const body = await parseJsonSafely(res)
       if (!res.ok) {
@@ -80,29 +102,41 @@ export default function Showcase() {
     } finally {
       setLoading(false)
     }
-  }, [weight, speed])
+  }, [caseName, weight, speed])
 
   const chartData = result
     ? result.times.map((t, i) => {
-        const row = { time: parseFloat(t.toFixed(4)) }
-        for (const col of Object.keys(result.series)) {
-          row[`${col}_true`] = result.series[col].true[i]
-          row[`${col}_pred`] = result.series[col].pred[i]
-        }
-        return row
-      })
+      const row = { time: parseFloat(t.toFixed(4)) }
+      for (const col of Object.keys(result.series)) {
+        row[`${col}_true`] = result.series[col].true[i]
+        row[`${col}_pred`] = result.series[col].pred[i]
+      }
+      return row
+    })
     : []
 
   return (
     <div className="max-w-6xl mx-auto space-y-6">
       <div>
         <h1 className="text-2xl font-bold text-[#e6edf3]">结果展示</h1>
-        <p className="text-[#8b949e] mt-2">选择已有工况数据，查看 AMF-BiGRU 模型的预测效果与真实值对比</p>
+        <p className="text-[#8b949e] mt-2">选择 case 与工况（不同重量 / 不同速度），查看 AMF-BiGRU 模型的预测效果与真实值对比</p>
       </div>
 
       {/* Controls */}
       <div className="bg-[#161b22] border border-[#30363d] rounded-xl p-5">
         <div className="flex flex-wrap items-end gap-6">
+          <div className="space-y-2">
+            <label className="text-sm text-[#8b949e]">Case</label>
+            <select
+              value={caseName}
+              onChange={(e) => setCaseName(e.target.value)}
+              className="block w-44 bg-[#0d1117] border border-[#30363d] text-[#e6edf3] rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#00d4ff]"
+            >
+              <option value="case1">case1（不同重量）</option>
+              <option value="case2">case2（不同速度）</option>
+            </select>
+          </div>
+
           <div className="space-y-2">
             <label className="text-sm text-[#8b949e]">车重 (kN)</label>
             <select
@@ -112,11 +146,11 @@ export default function Showcase() {
             >
               {weights.length > 0
                 ? weights.map((w) => (
-                    <option key={w} value={w}>{w} kN</option>
-                  ))
+                  <option key={w} value={w}>{w} kN</option>
+                ))
                 : [38, 40, 42, 44, 45, 46, 48, 50].map((w) => (
-                    <option key={w} value={w}>{w} kN</option>
-                  ))}
+                  <option key={w} value={w}>{w} kN</option>
+                ))}
             </select>
           </div>
 
@@ -129,11 +163,11 @@ export default function Showcase() {
             >
               {speeds.length > 0
                 ? speeds.map((v) => (
-                    <option key={v} value={v}>{v} m/s</option>
-                  ))
+                  <option key={v} value={v}>{v} m/s</option>
+                ))
                 : [40].map((v) => (
-                    <option key={v} value={v}>{v} m/s</option>
-                  ))}
+                  <option key={v} value={v}>{v} m/s</option>
+                ))}
             </select>
           </div>
 
@@ -235,6 +269,32 @@ export default function Showcase() {
           </div>
         </>
       )}
+
+      <div className="bg-[#161b22] border border-[#30363d] rounded-xl p-5">
+        <h2 className="text-base font-semibold text-[#e6edf3] mb-3">
+          测试集预测视频（{caseName}）
+        </h2>
+        <p className="text-xs text-[#8b949e] mb-3">
+          说明：此处展示的是该 case 的测试集视频文件，不会随上方车重/车速选择而变化。
+        </p>
+        {videos.length === 0 ? (
+          <p className="text-sm text-[#8b949e]">当前 case 暂无视频文件。</p>
+        ) : (
+          <div className="grid grid-cols-1 gap-4">
+            {videos.map((v) => (
+              <div key={v.url} className="space-y-2">
+                <p className="text-xs text-[#8b949e]">{v.name}</p>
+                <video
+                  controls
+                  preload="metadata"
+                  className="w-full rounded-lg border border-[#30363d] bg-black"
+                  src={v.url}
+                />
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   )
 }

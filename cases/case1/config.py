@@ -6,6 +6,7 @@ if ROOT_DIR not in sys.path:
     sys.path.insert(0, ROOT_DIR)
 
 from shared import model_hparams as M
+from shared import sensor_config as S
 from shared import training_hparams as T
 
 DATA_DIR = os.path.join(ROOT_DIR, "dataset", "different_weight")
@@ -16,8 +17,9 @@ EVAL_FIG_NAME = "test_results_case1.png"
 PRED_VIDEO_NAME = "prediction_realtime_case1.mp4"
 
 # --- Data ---
-DISP_COLS = ["N1_UZ", "N7_UZ"]
-ACC_COLS = ["N1_AZ", "N7_AZ"]
+SENSOR_NODES = S.get_sensor_nodes("case1")
+DISP_COLS = S.build_disp_cols(SENSOR_NODES)
+ACC_COLS = S.build_acc_cols(SENSOR_NODES)
 TARGET_COLS = ["front_axle_wt", "rear_axle_wt", "front_wheel_pos", "rear_wheel_pos"]
 
 TRAIN_FILES = [
@@ -29,8 +31,8 @@ TEST_FILES = [os.path.join(DATA_DIR, "test", "w45_v40_labeled.csv")]
 
 # --- Model (shared across all cases) ---
 SEQ_LEN = M.SEQ_LEN
-DISP_FEATURES = M.DISP_FEATURES
-ACC_FEATURES = M.ACC_FEATURES
+DISP_FEATURES = len(DISP_COLS)
+ACC_FEATURES = len(ACC_COLS)
 BIGRU_HIDDEN = M.BIGRU_HIDDEN
 FC1_DIM = M.FC1_DIM
 FC2_DIM = M.FC2_DIM

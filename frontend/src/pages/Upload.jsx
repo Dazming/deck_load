@@ -49,6 +49,7 @@ function formatTime(iso) {
 }
 
 export default function Upload() {
+  const [caseName, setCaseName] = useState('case1')
   const [file, setFile] = useState(null)
   const [result, setResult] = useState(null)
   const [activeLabel, setActiveLabel] = useState(null)
@@ -100,6 +101,7 @@ export default function Upload() {
     try {
       const formData = new FormData()
       formData.append('file', file)
+      formData.append('case', caseName)
       const res = await fetchApi('/upload_predict', {
         method: 'POST',
         body: formData,
@@ -133,7 +135,7 @@ export default function Upload() {
     } finally {
       setLoading(false)
     }
-  }, [file])
+  }, [file, caseName])
 
   const loadFromHistory = useCallback((entry) => {
     setResult(entry.result)
@@ -187,13 +189,25 @@ export default function Upload() {
       <div>
         <h1 className="text-2xl font-bold text-[#e6edf3]">在线预测</h1>
         <p className="text-[#8b949e] mt-2">
-          上传传感器数据 CSV 文件，AMF-BiGRU 模型将输出移动载荷的重量与位置预测
+          选择 case 后上传传感器数据 CSV，AMF-BiGRU 输出移动载荷重量与位置预测
         </p>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Upload area */}
         <div className="lg:col-span-2 bg-[#161b22] border border-[#30363d] rounded-xl p-5 space-y-4">
+          <div className="space-y-2">
+            <label className="text-sm text-[#8b949e]">Case</label>
+            <select
+              value={caseName}
+              onChange={(e) => setCaseName(e.target.value)}
+              className="block w-56 bg-[#0d1117] border border-[#30363d] text-[#e6edf3] rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#00d4ff]"
+            >
+              <option value="case1">case1（不同重量，2点传感器）</option>
+              <option value="case2">case2（不同速度，7点传感器）</option>
+            </select>
+          </div>
+
           <div
             onDragOver={(e) => { e.preventDefault(); setDragOver(true) }}
             onDragLeave={() => setDragOver(false)}
@@ -217,7 +231,9 @@ export default function Upload() {
               拖拽 CSV 文件到此处，或 <span className="text-[#00d4ff]">点击选择文件</span>
             </p>
             <p className="text-xs text-[#484f58] mt-2">
-              CSV 需包含列: N1_UZ, N7_UZ, N1_AZ, N7_AZ
+              {caseName === 'case1'
+                ? 'CSV 需包含列: N1_UZ, N7_UZ, N1_AZ, N7_AZ'
+                : 'CSV 需包含列: N1~N7 的 UZ/AZ（如 N1_UZ ... N7_UZ, N1_AZ ... N7_AZ）'}
             </p>
           </div>
 
