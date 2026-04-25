@@ -141,7 +141,7 @@ python api_server.py
 
 启动后可访问健康检查接口：
 
-- [http://localhost:5000/api/health](http://localhost:5000/api/health)
+- [http://127.0.0.1:5000/api/health](http://127.0.0.1:5000/api/health)
 
 ### 2) 启动前端（终端 2）
 
@@ -150,11 +150,11 @@ cd frontend
 npm run dev
 ```
 
-打开终端输出的 Local 地址（通常是）：
+打开终端输出的 Local 地址（常见为）：
 
-- [http://localhost:5173](http://localhost:5173)
+- [http://127.0.0.1:5173](http://127.0.0.1:5173)
 
-如果 5173 被占用，Vite 会自动切到 5174/5175，请以终端输出为准。
+如果端口被占用，Vite 会自动切换，请以终端输出为准。
 
 ### 3) Windows 一键启动（推荐）
 
@@ -168,9 +168,9 @@ start_web.bat
 
 - 启动后端（`conda run -n test python api_server.py`）
 - 启动前端（`cd frontend && npm run dev`）
-- 尝试打开浏览器 `http://localhost:5173`
+- 尝试打开浏览器（优先端口按 `4173 → 5173 → 5174 → 5175` 依次选择）
 
-注意：若 5173 被占用，前端会自动切换端口，请以前端终端输出的 Local 地址为准。
+注意：`start_web.bat` 会在 `4173, 5173, 5174, 5175` 中选择可用端口并自动打开对应地址，请以前端终端输出或脚本最终打印为准。
 
 ## 功能页面说明
 
@@ -273,4 +273,3 @@ CSV 文件列要求按 case 而不同（顺序不限，按列名匹配）：
 | rear_wheel_pos | 后轮位置 (m) |
 | front_axle_wt | 前轴重量 (N) |
 | rear_axle_wt | 后轴重量 (N) |
-

@@ -116,14 +116,12 @@ export default function Architecture() {
               </p>
             </div>
 
-            <div className="bg-[#0d1117] border border-[#30363d] rounded-lg p-3">
-              <p className="text-xs text-[#e6edf3] font-medium">预测后处理（case1/case2 通用）</p>
-              <div className="mt-2 space-y-1 text-xs text-[#8b949e]">
+            <div className="bg-[#a78bfa]/10 border border-[#a78bfa]/30 rounded-lg p-3">
+              <p className="text-xs text-[#a78bfa] font-medium">预测后处理（case1/case2 通用）</p>
+              <div className="mt-2 space-y-1.5 text-xs text-[#8b949e] leading-relaxed">
                 <p>• 异常点检测 + 连续异常段插值修复</p>
                 <p>• 按轴是否在甲板上分段（去抖动）</p>
                 <p>• off-deck 强制位置归零（可选轴重归零）</p>
-                <p>• on-deck 位置约束到 [0, 40] 且单调不减</p>
-                <p>• 全局开关：shared/prediction_postprocess_hparams.py → ENABLE</p>
               </div>
             </div>
           </div>
