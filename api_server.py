@@ -23,6 +23,7 @@ from shared.data_pipeline import (
     prediction_time_axis_from_dataframe,
 )
 from shared.model_arch import AMFBiGRU
+from shared.prediction_smoothing import smooth_predictions_preserve_zero_jumps
 
 app = Flask(__name__)
 CORS(app)
@@ -123,6 +124,21 @@ def _run_inference(csv_path: str, case_name: str):
         preds = model(xd_t, xa_t).cpu().numpy()
 
     preds_orig = state["target_scaler"].inverse_transform(preds)
+    if case_config.PRED_SMOOTH_ENABLE:
+        preds_orig = smooth_predictions_preserve_zero_jumps(
+            preds_orig,
+            weight_threshold=case_config.PRED_SMOOTH_WEIGHT_THRESHOLD,
+            median_kernel=case_config.PRED_SMOOTH_MEDIAN_KERNEL,
+            ema_alpha=case_config.PRED_SMOOTH_EMA_ALPHA,
+            despike_n_sigma=case_config.PRED_DESPIKE_NSIGMA,
+            boundary_guard=case_config.PRED_SMOOTH_BOUNDARY_GUARD,
+            deck_length=case_config.PRED_SMOOTH_DECK_LENGTH,
+            enforce_physical_position=case_config.PRED_SMOOTH_ENFORCE_PHYSICAL_POSITION,
+            position_vel_n_sigma=case_config.PRED_POS_VEL_OUTLIER_NSIGMA,
+            position_fix_passes=case_config.PRED_POS_FIX_MAX_PASSES,
+            axle_mask_min_run=case_config.PRED_AXLE_MASK_MIN_RUN,
+            force_zero_offdeck=case_config.PRED_FORCE_ZERO_OFFDECK,
+        )
     targets_orig = state["target_scaler"].inverse_transform(y)
 
     n = len(targets_orig)
@@ -300,6 +316,21 @@ def upload_predict():
         preds = model(xd_t, xa_t).cpu().numpy()
 
     preds_orig = state["target_scaler"].inverse_transform(preds)
+    if case_config.PRED_SMOOTH_ENABLE:
+        preds_orig = smooth_predictions_preserve_zero_jumps(
+            preds_orig,
+            weight_threshold=case_config.PRED_SMOOTH_WEIGHT_THRESHOLD,
+            median_kernel=case_config.PRED_SMOOTH_MEDIAN_KERNEL,
+            ema_alpha=case_config.PRED_SMOOTH_EMA_ALPHA,
+            despike_n_sigma=case_config.PRED_DESPIKE_NSIGMA,
+            boundary_guard=case_config.PRED_SMOOTH_BOUNDARY_GUARD,
+            deck_length=case_config.PRED_SMOOTH_DECK_LENGTH,
+            enforce_physical_position=case_config.PRED_SMOOTH_ENFORCE_PHYSICAL_POSITION,
+            position_vel_n_sigma=case_config.PRED_POS_VEL_OUTLIER_NSIGMA,
+            position_fix_passes=case_config.PRED_POS_FIX_MAX_PASSES,
+            axle_mask_min_run=case_config.PRED_AXLE_MASK_MIN_RUN,
+            force_zero_offdeck=case_config.PRED_FORCE_ZERO_OFFDECK,
+        )
 
     n_out = len(preds_orig)
     times_arr = prediction_time_axis_from_dataframe(df, case_config.SEQ_LEN)

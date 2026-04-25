@@ -7,10 +7,9 @@ to stay identical across scenarios.
 
 # --- Model architecture ---
 SEQ_LEN = 7
-# Input feature dimensions are now derived from selected sensor columns
-# in each case config (len(DISP_COLS), len(ACC_COLS)).
-DISP_FEATURES = 2
-ACC_FEATURES = 2
+# Input feature dimensions are derived per-case from sensor selection:
+#   DISP_FEATURES = len(DISP_COLS)
+#   ACC_FEATURES = len(ACC_COLS)
 BIGRU_HIDDEN = 32
 FC1_DIM = 64
 FC2_DIM = 32

@@ -182,6 +182,36 @@ start_web.bat
 | 结果展示 | `/showcase` | 先选 case，再选工况（车重/车速），查看真实值 vs 预测值对比图及 RPE/R²；页面下方展示该 case 的测试集预测视频 |
 | 在线预测 | `/predict` | 先选 case，再上传 CSV：case1 需 2 点列（N1/N7），case2 需 7 点列（N1~N7），展示纯预测结果 |
 
+## 预测后处理（异常点修复）
+
+为减少局部尖刺并避免误伤真实物理跳变，项目在预测输出后增加了通用后处理模块：
+
+- 位置：`shared/prediction_smoothing.py`
+- 参数：`shared/prediction_postprocess_hparams.py`（case1/case2 共用）
+
+当前后处理包含：
+
+1. Hampel/MAD 异常点检测（支持连续异常段修复）
+2. 基于轴重阈值的 on-deck / off-deck 分段处理
+3. 边界保护（不在真实跳变边缘过度修复）
+4. 物理约束投影：
+   - 轴不在甲板上时，位置强制为 0（可选：轴重也强制为 0）
+   - 轴在甲板上时，位置限制在 `[0, deck_length]` 且单调不减
+
+### 全局开关与常用参数
+
+在 `shared/prediction_postprocess_hparams.py`：
+
+- `ENABLE`：是否启用异常点修复（全局开关，case1/case2 同时生效）
+- `FORCE_ZERO_OFFDECK`：轴不在甲板上时是否强制轴重归零
+- `AXLE_MASK_MIN_RUN`：轴在甲板上状态最短连续长度（去抖动）
+- `MEDIAN_KERNEL` / `DESPIKE_NSIGMA`：异常点检测强度
+- `POS_VEL_OUTLIER_NSIGMA` / `POS_FIX_MAX_PASSES`：位置局部折点修复强度
+- `EVAL_USE_SMOOTH_FOR_METRICS`：是否用修复后结果计算 RPE/R²
+- `EVAL_PLOT_SMOOTHED`：是否在图上显示修复后曲线
+
+说明：后处理默认对 case1/case2 使用同一套参数；如需区分，可在各 case 的 `config.py` 做覆盖。
+
 ## 常用脚本
 
 ```bash
