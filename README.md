@@ -6,10 +6,14 @@
 
 AMF-BiGRU 模型通过融合甲板结构的**位移**和**加速度**双模态响应，实现移动载荷的重建（前后轴重量）与定位（前后轮位置）。
 
+当前项目采用统一模型 + 双 case：
+- **case1（不同重量）**：使用 2 个测点（N1、N7）
+- **case2（不同速度）**：使用 7 个测点（N1~N7）
+
 ```
-位移响应 (N1_UZ, N7_UZ) → BiGRU → FC → ReLU → Dropout → FC → ReLU → Dropout ─┐
-                                                                                 ├→ Attention Fusion → Output (4维)
-加速度响应 (N1_AZ, N7_AZ) → BiGRU → FC → ReLU → Dropout → FC → ReLU → Dropout ─┘
+位移响应 (case1: N1/N7, case2: N1~N7) → BiGRU → FC → ReLU → Dropout → FC → ReLU → Dropout ─┐
+                                                                                               ├→ Attention Fusion → Output (4维)
+加速度响应 (case1: N1/N7, case2: N1~N7) → BiGRU → FC → ReLU → Dropout → FC → ReLU → Dropout ─┘
 ```
 
 **输出**：前轴重量、后轴重量、前轮位置、后轮位置
@@ -37,7 +41,7 @@ deck_load/
 │   └── video_demos/                    # 演示色视频（合成数据）
 │       ├── demo_video_speed.py
 │       └── demo_video_alternating_noise.py
-├── api_server.py                       # Flask API（当前接 case1）
+├── api_server.py                       # Flask API（支持 case1/case2 选择）
 ├── frontend/                           # React + Vite 前端
 ├── dataset/
 │   ├── different_weight/
@@ -174,9 +178,9 @@ start_web.bat
 
 | 页面 | 路由 | 功能 |
 |------|------|------|
-| 模型架构 | `/` | AMF-BiGRU 网络结构图、数据处理流水线、超参数说明 |
-| 结果展示 | `/showcase` | 选择已有工况（车重/车速），查看真实值 vs 预测值对比图及 RPE/R² 指标 |
-| 在线预测 | `/predict` | 上传仅含传感器列（N1_UZ, N7_UZ, N1_AZ, N7_AZ）的 CSV，展示纯预测结果 |
+| 模型架构 | `/` | AMF-BiGRU 网络结构图、数据处理流水线、超参数说明（含 case1/2 输入点差异） |
+| 结果展示 | `/showcase` | 先选 case，再选工况（车重/车速），查看真实值 vs 预测值对比图及 RPE/R²；页面下方展示该 case 的测试集预测视频 |
+| 在线预测 | `/predict` | 先选 case，再上传 CSV：case1 需 2 点列（N1/N7），case2 需 7 点列（N1~N7），展示纯预测结果 |
 
 ## 常用脚本
 
@@ -208,7 +212,7 @@ python tools/video_demos/demo_video_alternating_noise.py
 
 ## 测试结果
 
-不同车重工况，2 测量点 (N1, N7)，测试集 w=45 kN：
+case1（不同车重）在 2 测量点 (N1, N7) 配置下，测试集 w=45 kN：
 
 | 目标变量 | RPE (%) | R² |
 |---------|---------|------|
@@ -221,15 +225,20 @@ python tools/video_demos/demo_video_alternating_noise.py
 
 ## 数据格式
 
-CSV 文件，每文件 1200 行（+ 表头），列定义：
+CSV 文件列要求按 case 而不同（顺序不限，按列名匹配）：
+
+- **case1（2 点）必需输入列**：
+  - `N1_UZ`, `N7_UZ`, `N1_AZ`, `N7_AZ`
+- **case2（7 点）必需输入列**：
+  - `N1_UZ` ~ `N7_UZ`
+  - `N1_AZ` ~ `N7_AZ`
+
+离线训练/评估数据通常还包含以下目标列（在线预测可不含）：
 
 | 列名 | 含义 |
 |------|------|
 | TIME | 时间 (s) |
-| N1_UZ | 测量点 N1 位移响应 |
-| N1_AZ | 测量点 N1 加速度响应 |
-| N7_UZ | 测量点 N7 位移响应 |
-| N7_AZ | 测量点 N7 加速度响应 |
+| N*_UZ / N*_AZ | 传感器位移 / 加速度响应（* 取决于 case 的点位配置） |
 | front_wheel_pos | 前轮位置 (m) |
 | rear_wheel_pos | 后轮位置 (m) |
 | front_axle_wt | 前轴重量 (N) |
