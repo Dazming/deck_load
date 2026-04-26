@@ -5,10 +5,9 @@ Supports per-case sensor selection while keeping one shared source of truth.
 """
 
 # Per-case sensor nodes.
-# case1: keep legacy setting (N1, N7)
-# case2: use all seven points
+# case1/case2: both use all seven points
 CASE_SENSOR_NODES = {
-    "case1": [1, 7],
+    "case1": [1, 2, 3, 4, 5, 6, 7],
     "case2": [1, 2, 3, 4, 5, 6, 7],
 }
 

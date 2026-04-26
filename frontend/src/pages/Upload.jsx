@@ -50,6 +50,7 @@ function formatTime(iso) {
 
 export default function Upload() {
   const [caseName, setCaseName] = useState('case1')
+  const [postprocessEnabled, setPostprocessEnabled] = useState(true)
   const [file, setFile] = useState(null)
   const [result, setResult] = useState(null)
   const [activeLabel, setActiveLabel] = useState(null)
@@ -102,6 +103,7 @@ export default function Upload() {
       const formData = new FormData()
       formData.append('file', file)
       formData.append('case', caseName)
+      formData.append('postprocess_enable', String(postprocessEnabled))
       const res = await fetchApi('/upload_predict', {
         method: 'POST',
         body: formData,
@@ -135,7 +137,7 @@ export default function Upload() {
     } finally {
       setLoading(false)
     }
-  }, [file, caseName])
+  }, [file, caseName, postprocessEnabled])
 
   const loadFromHistory = useCallback((entry) => {
     setResult(entry.result)
@@ -203,10 +205,20 @@ export default function Upload() {
               onChange={(e) => setCaseName(e.target.value)}
               className="block w-56 bg-[#0d1117] border border-[#30363d] text-[#e6edf3] rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#00d4ff]"
             >
-              <option value="case1">case1（不同重量，2点传感器）</option>
+              <option value="case1">case1（不同重量，7点传感器）</option>
               <option value="case2">case2（不同速度，7点传感器）</option>
             </select>
           </div>
+
+          <label className="flex items-center gap-2 text-sm text-[#8b949e] select-none">
+            <input
+              type="checkbox"
+              checked={postprocessEnabled}
+              onChange={(e) => setPostprocessEnabled(e.target.checked)}
+              className="h-4 w-4 accent-[#00d4ff]"
+            />
+            启用预测后处理（异常点修复）
+          </label>
 
           <div
             onDragOver={(e) => { e.preventDefault(); setDragOver(true) }}
@@ -231,9 +243,7 @@ export default function Upload() {
               拖拽 CSV 文件到此处，或 <span className="text-[#00d4ff]">点击选择文件</span>
             </p>
             <p className="text-xs text-[#484f58] mt-2">
-              {caseName === 'case1'
-                ? 'CSV 需包含列: N1_UZ, N7_UZ, N1_AZ, N7_AZ'
-                : 'CSV 需包含列: N1~N7 的 UZ/AZ（如 N1_UZ ... N7_UZ, N1_AZ ... N7_AZ）'}
+              {'CSV 需包含列: N1~N7 的 UZ/AZ（如 N1_UZ ... N7_UZ, N1_AZ ... N7_AZ）'}
             </p>
           </div>
 
@@ -341,6 +351,12 @@ export default function Upload() {
           {activeLabel && (
             <p className="text-xs text-[#8b949e]">
               当前结果：<span className="text-[#e6edf3] font-mono">{activeLabel}</span>
+              <span className="ml-3">
+                后处理：
+                <span className={`ml-1 font-mono ${result.postprocess_enabled ? 'text-[#00d4ff]' : 'text-[#ff6b6b]'}`}>
+                  {result.postprocess_enabled ? 'ON' : 'OFF'}
+                </span>
+              </span>
             </p>
           )}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">

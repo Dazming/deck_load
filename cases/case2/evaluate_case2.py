@@ -32,6 +32,7 @@ def build_model():
 def evaluate():
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     _, _, test_loader, target_scaler = prepare_data(config)
+    print(f"[Postprocess] enabled = {config.PRED_SMOOTH_ENABLE}")
 
     model = build_model().to(device)
     ckpt_path = os.path.join(config.SAVE_DIR, config.BEST_MODEL_NAME)
@@ -46,25 +47,27 @@ def evaluate():
             all_targets.append(y.numpy())
 
     preds_orig_raw = target_scaler.inverse_transform(np.concatenate(all_preds))
+    targets_orig = target_scaler.inverse_transform(np.concatenate(all_targets))
     preds_orig_smooth = preds_orig_raw
     if config.PRED_SMOOTH_ENABLE:
         preds_orig_smooth = smooth_predictions_preserve_zero_jumps(
             preds_orig_raw,
             weight_threshold=config.PRED_SMOOTH_WEIGHT_THRESHOLD,
+            weight_off_ratio=config.PRED_SMOOTH_WEIGHT_OFF_RATIO,
             median_kernel=config.PRED_SMOOTH_MEDIAN_KERNEL,
             ema_alpha=config.PRED_SMOOTH_EMA_ALPHA,
             despike_n_sigma=config.PRED_DESPIKE_NSIGMA,
             boundary_guard=config.PRED_SMOOTH_BOUNDARY_GUARD,
             deck_length=config.PRED_SMOOTH_DECK_LENGTH,
-            enforce_physical_position=config.PRED_SMOOTH_ENFORCE_PHYSICAL_POSITION,
+            enforce_physical_position=True,
             position_vel_n_sigma=config.PRED_POS_VEL_OUTLIER_NSIGMA,
             position_fix_passes=config.PRED_POS_FIX_MAX_PASSES,
             axle_mask_min_run=config.PRED_AXLE_MASK_MIN_RUN,
-            force_zero_offdeck=config.PRED_FORCE_ZERO_OFFDECK,
+            force_zero_offdeck=True,
+            reference_weights=targets_orig[:, [0, 1]],
         )
-    preds_metric = preds_orig_smooth if config.EVAL_USE_SMOOTH_FOR_METRICS else preds_orig_raw
-    preds_plot = preds_orig_smooth if config.EVAL_PLOT_SMOOTHED else preds_orig_raw
-    targets_orig = target_scaler.inverse_transform(np.concatenate(all_targets))
+    preds_metric = preds_orig_smooth if config.PRED_SMOOTH_ENABLE else preds_orig_raw
+    preds_plot = preds_orig_smooth if config.PRED_SMOOTH_ENABLE else preds_orig_raw
 
     times = test_time_axis_from_csv(config)
     if len(times) != len(targets_orig):
@@ -74,6 +77,10 @@ def evaluate():
         )
 
     print("\n" + "=" * 70)
+    if config.PRED_SMOOTH_ENABLE:
+        print("[Postprocess] Applied to predictions before metrics/plot.")
+    else:
+        print("[Postprocess] Disabled. Using raw model predictions.")
     print(f"{'Variable':<22s} {'RPE (%)':>10s} {'R2':>12s}")
     print("-" * 70)
     for i, name in enumerate(config.TARGET_COLS):

@@ -63,6 +63,19 @@ def _get_case_config(case_name: str):
     return CASE_CONFIGS[case_name]
 
 
+def _parse_bool(value, default: bool):
+    if value is None:
+        return default
+    if isinstance(value, bool):
+        return value
+    s = str(value).strip().lower()
+    if s in {"1", "true", "yes", "y", "on"}:
+        return True
+    if s in {"0", "false", "no", "n", "off"}:
+        return False
+    return default
+
+
 def _fit_scalers(case_name: str):
     state = _runtime[case_name]
     case_config = _get_case_config(case_name)
@@ -97,7 +110,7 @@ def _load_model(case_name: str):
     return state["model"]
 
 
-def _run_inference(csv_path: str, case_name: str):
+def _run_inference(csv_path: str, case_name: str, apply_postprocess: bool | None = None):
     case_config = _get_case_config(case_name)
     state = _runtime[case_name]
     _fit_scalers(case_name)
@@ -124,22 +137,26 @@ def _run_inference(csv_path: str, case_name: str):
         preds = model(xd_t, xa_t).cpu().numpy()
 
     preds_orig = state["target_scaler"].inverse_transform(preds)
-    if case_config.PRED_SMOOTH_ENABLE:
+    targets_orig = state["target_scaler"].inverse_transform(y)
+    if apply_postprocess is None:
+        apply_postprocess = case_config.PRED_SMOOTH_ENABLE
+    if apply_postprocess:
         preds_orig = smooth_predictions_preserve_zero_jumps(
             preds_orig,
             weight_threshold=case_config.PRED_SMOOTH_WEIGHT_THRESHOLD,
+            weight_off_ratio=case_config.PRED_SMOOTH_WEIGHT_OFF_RATIO,
             median_kernel=case_config.PRED_SMOOTH_MEDIAN_KERNEL,
             ema_alpha=case_config.PRED_SMOOTH_EMA_ALPHA,
             despike_n_sigma=case_config.PRED_DESPIKE_NSIGMA,
             boundary_guard=case_config.PRED_SMOOTH_BOUNDARY_GUARD,
             deck_length=case_config.PRED_SMOOTH_DECK_LENGTH,
-            enforce_physical_position=case_config.PRED_SMOOTH_ENFORCE_PHYSICAL_POSITION,
+            enforce_physical_position=True,
             position_vel_n_sigma=case_config.PRED_POS_VEL_OUTLIER_NSIGMA,
             position_fix_passes=case_config.PRED_POS_FIX_MAX_PASSES,
             axle_mask_min_run=case_config.PRED_AXLE_MASK_MIN_RUN,
-            force_zero_offdeck=case_config.PRED_FORCE_ZERO_OFFDECK,
+            force_zero_offdeck=True,
+            reference_weights=targets_orig[:, [0, 1]],
         )
-    targets_orig = state["target_scaler"].inverse_transform(y)
 
     n = len(targets_orig)
     times_arr = prediction_time_axis_from_dataframe(df, case_config.SEQ_LEN)
@@ -241,12 +258,14 @@ def predict():
     if match is None:
         return jsonify({"error": f"No data for w={w}, v={v}"}), 404
 
-    result = _run_inference(match["path"], case_name)
+    apply_postprocess = _parse_bool(body.get("postprocess_enable"), True)
+    result = _run_inference(match["path"], case_name, apply_postprocess=apply_postprocess)
     if result is None:
         case_config = _get_case_config(case_name)
         return jsonify({"error": f"Model not trained yet ({case_config.BEST_MODEL_NAME} missing)"}), 503
 
     result["condition"] = {"case": case_name, "weight": w, "speed": v, "split": match["split"]}
+    result["postprocess_enabled"] = apply_postprocess
     return jsonify(result)
 
 
@@ -275,6 +294,10 @@ def upload_predict():
     case_name = request.form.get("case", "case1")
     case_config = _get_case_config(case_name)
     state = _runtime[case_name]
+    apply_postprocess = _parse_bool(
+        request.form.get("postprocess_enable"),
+        case_config.PRED_SMOOTH_ENABLE,
+    )
     _fit_scalers(case_name)
     model = _load_model(case_name)
     if model is None:
@@ -316,20 +339,21 @@ def upload_predict():
         preds = model(xd_t, xa_t).cpu().numpy()
 
     preds_orig = state["target_scaler"].inverse_transform(preds)
-    if case_config.PRED_SMOOTH_ENABLE:
+    if apply_postprocess:
         preds_orig = smooth_predictions_preserve_zero_jumps(
             preds_orig,
             weight_threshold=case_config.PRED_SMOOTH_WEIGHT_THRESHOLD,
+                    weight_off_ratio=case_config.PRED_SMOOTH_WEIGHT_OFF_RATIO,
             median_kernel=case_config.PRED_SMOOTH_MEDIAN_KERNEL,
             ema_alpha=case_config.PRED_SMOOTH_EMA_ALPHA,
             despike_n_sigma=case_config.PRED_DESPIKE_NSIGMA,
             boundary_guard=case_config.PRED_SMOOTH_BOUNDARY_GUARD,
             deck_length=case_config.PRED_SMOOTH_DECK_LENGTH,
-            enforce_physical_position=case_config.PRED_SMOOTH_ENFORCE_PHYSICAL_POSITION,
+            enforce_physical_position=True,
             position_vel_n_sigma=case_config.PRED_POS_VEL_OUTLIER_NSIGMA,
             position_fix_passes=case_config.PRED_POS_FIX_MAX_PASSES,
             axle_mask_min_run=case_config.PRED_AXLE_MASK_MIN_RUN,
-            force_zero_offdeck=case_config.PRED_FORCE_ZERO_OFFDECK,
+            force_zero_offdeck=True,
         )
 
     n_out = len(preds_orig)
@@ -349,6 +373,7 @@ def upload_predict():
     return jsonify({
         "times": [times[j] for j in idx],
         "series": series,
+        "postprocess_enabled": apply_postprocess,
     })
 
 

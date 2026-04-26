@@ -46,6 +46,7 @@ export default function Showcase() {
   const [conditions, setConditions] = useState([])
   const [caseName, setCaseName] = useState('case1')
   const [videos, setVideos] = useState([])
+  const [postprocessEnabled, setPostprocessEnabled] = useState(true)
   const [weight, setWeight] = useState(45)
   const [speed, setSpeed] = useState(40)
   const [result, setResult] = useState(null)
@@ -89,7 +90,12 @@ export default function Showcase() {
       const res = await fetchApi('/predict', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ case: caseName, weight, speed }),
+        body: JSON.stringify({
+          case: caseName,
+          weight,
+          speed,
+          postprocess_enable: postprocessEnabled,
+        }),
       })
       const body = await parseJsonSafely(res)
       if (!res.ok) {
@@ -102,7 +108,7 @@ export default function Showcase() {
     } finally {
       setLoading(false)
     }
-  }, [caseName, weight, speed])
+  }, [caseName, weight, speed, postprocessEnabled])
 
   const chartData = result
     ? result.times.map((t, i) => {
@@ -136,6 +142,16 @@ export default function Showcase() {
               <option value="case2">case2（不同速度）</option>
             </select>
           </div>
+
+          <label className="flex items-center gap-2 text-sm text-[#8b949e] select-none">
+            <input
+              type="checkbox"
+              checked={postprocessEnabled}
+              onChange={(e) => setPostprocessEnabled(e.target.checked)}
+              className="h-4 w-4 accent-[#00d4ff]"
+            />
+            启用预测后处理（异常点修复）
+          </label>
 
           <div className="space-y-2">
             <label className="text-sm text-[#8b949e]">车重 (kN)</label>
@@ -191,6 +207,12 @@ export default function Showcase() {
 
       {result && (
         <>
+          <p className="text-xs text-[#8b949e]">
+            后处理：
+            <span className={`ml-1 font-mono ${result.postprocess_enabled ? 'text-[#00d4ff]' : 'text-[#ff6b6b]'}`}>
+              {result.postprocess_enabled ? 'ON' : 'OFF'}
+            </span>
+          </p>
           {/* Metrics */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             {Object.entries(result.metrics).map(([col, m]) => (

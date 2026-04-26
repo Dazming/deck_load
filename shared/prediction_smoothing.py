@@ -23,6 +23,31 @@ def _suppress_short_runs(mask: np.ndarray, min_run: int) -> np.ndarray:
     return out
 
 
+def _weight_to_on_mask_hysteresis(
+    w: np.ndarray,
+    threshold: float,
+    off_ratio: float,
+) -> np.ndarray:
+    """
+    Build stable on-deck mask from axle weight with hysteresis:
+      - turn ON when w >= threshold
+      - turn OFF when w <= threshold * off_ratio
+    """
+    if len(w) == 0:
+        return np.zeros(0, dtype=bool)
+    th_on = float(threshold)
+    th_off = float(threshold) * float(off_ratio)
+    state = False
+    on_mask = np.zeros(len(w), dtype=bool)
+    for i, wi in enumerate(w):
+        if not state and wi >= th_on:
+            state = True
+        elif state and wi <= th_off:
+            state = False
+        on_mask[i] = state
+    return on_mask
+
+
 def _median_filter_1d(x: np.ndarray, kernel_size: int) -> np.ndarray:
     if kernel_size <= 1 or len(x) == 0:
         return x.copy()
@@ -153,6 +178,8 @@ def smooth_predictions_preserve_zero_jumps(
     position_fix_passes: int = 2,
     axle_mask_min_run: int = 5,
     force_zero_offdeck: bool = True,
+    weight_off_ratio: float = 0.5,
+    reference_weights: np.ndarray | None = None,
 ) -> np.ndarray:
     """
     Smooth prediction spikes while preserving physical on-deck/off-deck jumps.
@@ -174,8 +201,18 @@ def smooth_predictions_preserve_zero_jumps(
 
     out = preds.copy()
     on_deck = np.zeros(len(preds), dtype=bool)
+    ref_w = None
+    if reference_weights is not None:
+        arr = np.asarray(reference_weights)
+        if arr.ndim == 2 and arr.shape[0] == len(preds) and arr.shape[1] >= len(weight_cols):
+            ref_w = arr
     for c in weight_cols:
-        on_deck |= preds[:, c] > weight_threshold
+        src = out[:, c] if ref_w is None else ref_w[:, weight_cols.index(c)]
+        on_deck |= _weight_to_on_mask_hysteresis(
+            src,
+            threshold=weight_threshold,
+            off_ratio=weight_off_ratio,
+        )
     on_deck = _suppress_short_runs(on_deck, axle_mask_min_run)
 
     change_idx = np.where(np.diff(on_deck.astype(np.int8)) != 0)[0] + 1
@@ -212,13 +249,17 @@ def smooth_predictions_preserve_zero_jumps(
         # Per axle: project position with corresponding axle weight.
         # Convention: front axle uses cols (weight_cols[0], position_cols[0]),
         # rear axle uses (weight_cols[1], position_cols[1]).
-        for wc, pc in zip(weight_cols, position_cols):
+        for axle_idx, (wc, pc) in enumerate(zip(weight_cols, position_cols)):
             w = out[:, wc]
             p = out[:, pc].copy()
+            w_for_mask = w if ref_w is None else ref_w[:, axle_idx]
 
-            on_mask = w > weight_threshold
+            on_mask = _weight_to_on_mask_hysteresis(
+                w_for_mask,
+                threshold=weight_threshold,
+                off_ratio=weight_off_ratio,
+            )
             on_mask = _suppress_short_runs(on_mask, axle_mask_min_run)
-            p[~on_mask] = 0.0
             if force_zero_offdeck:
                 w[~on_mask] = 0.0
                 out[:, wc] = w
@@ -240,6 +281,9 @@ def smooth_predictions_preserve_zero_jumps(
                 )
                 p[s:e] = np.clip(p[s:e], 0.0, deck_length)
                 p[s:e] = np.maximum.accumulate(p[s:e])
+
+            # Keep numeric safety globally even outside on-deck segments.
+            p = np.clip(p, 0.0, deck_length)
 
             out[:, pc] = p
     return out

@@ -43,7 +43,7 @@ export default function Architecture() {
       <div>
         <h1 className="text-2xl font-bold text-[#e6edf3]">模型架构</h1>
         <p className="text-[#8b949e] mt-2">
-          AMF-BiGRU: 基于注意力机制的多模态融合双向门控循环单元，用于甲板结构移动载荷重构与定位（case1: 2点，case2: 7点）
+          AMF-BiGRU: 基于注意力机制的多模态融合双向门控循环单元，用于甲板结构移动载荷重构与定位（case1/case2: 均为7点）
         </p>
       </div>
 
@@ -70,13 +70,13 @@ export default function Architecture() {
             <div className="flex gap-4">
               <div className="flex-1 bg-[#00d4ff]/10 border border-[#00d4ff]/30 rounded-lg p-3 text-center">
                 <p className="text-xs text-[#00d4ff] font-medium">位移输入</p>
-                <p className="text-xs text-[#8b949e] mt-1">(batch, 7, 2/7)</p>
-                <p className="text-xs text-[#484f58]">case1: N1,N7 | case2: N1~N7</p>
+                <p className="text-xs text-[#8b949e] mt-1">(batch, 7, 7)</p>
+                <p className="text-xs text-[#484f58]">case1/case2: N1~N7</p>
               </div>
               <div className="flex-1 bg-[#ff6b6b]/10 border border-[#ff6b6b]/30 rounded-lg p-3 text-center">
                 <p className="text-xs text-[#ff6b6b] font-medium">加速度输入</p>
-                <p className="text-xs text-[#8b949e] mt-1">(batch, 7, 2/7)</p>
-                <p className="text-xs text-[#484f58]">case1: N1,N7 | case2: N1~N7</p>
+                <p className="text-xs text-[#8b949e] mt-1">(batch, 7, 7)</p>
+                <p className="text-xs text-[#484f58]">case1/case2: N1~N7</p>
               </div>
             </div>
 
@@ -85,7 +85,7 @@ export default function Architecture() {
               <div className="flex-1 bg-[#00b894]/10 border border-[#00b894]/30 rounded-lg p-3">
                 <p className="text-xs text-[#00b894] font-medium text-center">位移 BiGRU 分支</p>
                 <div className="mt-2 space-y-1 text-xs text-[#8b949e]">
-                  <p>BiGRU(in=2/7 → 32×2)</p>
+                  <p>BiGRU(in=7 → 32×2)</p>
                   <p>FC(64→64) + ReLU + Dropout</p>
                   <p>FC(64→32) + ReLU + Dropout</p>
                 </div>
@@ -93,7 +93,7 @@ export default function Architecture() {
               <div className="flex-1 bg-[#00b894]/10 border border-[#00b894]/30 rounded-lg p-3">
                 <p className="text-xs text-[#00b894] font-medium text-center">加速度 BiGRU 分支</p>
                 <div className="mt-2 space-y-1 text-xs text-[#8b949e]">
-                  <p>BiGRU(in=2/7 → 32×2)</p>
+                  <p>BiGRU(in=7 → 32×2)</p>
                   <p>FC(64→64) + ReLU + Dropout</p>
                   <p>FC(64→32) + ReLU + Dropout</p>
                 </div>

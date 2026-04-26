@@ -69,22 +69,24 @@ def generate_video():
             all_targets.append(y.numpy())
 
     preds = target_scaler.inverse_transform(np.concatenate(all_preds))
+    targets = target_scaler.inverse_transform(np.concatenate(all_targets))
     if config.PRED_SMOOTH_ENABLE:
         preds = smooth_predictions_preserve_zero_jumps(
             preds,
             weight_threshold=config.PRED_SMOOTH_WEIGHT_THRESHOLD,
+            weight_off_ratio=config.PRED_SMOOTH_WEIGHT_OFF_RATIO,
             median_kernel=config.PRED_SMOOTH_MEDIAN_KERNEL,
             ema_alpha=config.PRED_SMOOTH_EMA_ALPHA,
             despike_n_sigma=config.PRED_DESPIKE_NSIGMA,
             boundary_guard=config.PRED_SMOOTH_BOUNDARY_GUARD,
             deck_length=config.PRED_SMOOTH_DECK_LENGTH,
-            enforce_physical_position=config.PRED_SMOOTH_ENFORCE_PHYSICAL_POSITION,
+            enforce_physical_position=True,
             position_vel_n_sigma=config.PRED_POS_VEL_OUTLIER_NSIGMA,
             position_fix_passes=config.PRED_POS_FIX_MAX_PASSES,
             axle_mask_min_run=config.PRED_AXLE_MASK_MIN_RUN,
-            force_zero_offdeck=config.PRED_FORCE_ZERO_OFFDECK,
+            force_zero_offdeck=True,
+            reference_weights=targets[:, [0, 1]],
         )
-    targets = target_scaler.inverse_transform(np.concatenate(all_targets))
     n = len(preds)
 
     times = test_time_axis_from_csv(config)
