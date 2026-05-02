@@ -1,3 +1,7 @@
+"""
+//AI辅助生成: Qwen3.5， 2026-4-20
+"""
+
 import numpy as np
 
 
